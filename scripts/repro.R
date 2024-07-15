@@ -1,6 +1,7 @@
 #reproductive assignment for available females
 
 source('~/git-otago/Fiordland_reporting/scripts/connect to MySQL.R', local = TRUE)$value
+photo_analysis_calfyear_sql<-dbReadTable(con, "photo_analysis_calfyear")%>%filter(ID_NAME != "CULL")
 source('~/git-otago/Fiordland_reporting/scripts/life_history_ageclass update.R', local = TRUE)$value
 lifehist<-lifehist
 
@@ -19,7 +20,8 @@ head(birth_calves)
 females<-lifehist%>%
   filter(SEX == "F")%>%
   dplyr::select(-SEX)%>%
-  dplyr::select(POD, NAME, FIRST_CALF, BIRTH_YEAR, FIRST_YEAR, LAST_YEAR)
+  dplyr::select(POD, NAME, FIRST_CALF, BIRTH_YEAR, FIRST_YEAR, LAST_YEAR)%>%
+  filter(LAST_YEAR != "<NA>")
 
 females_long<-females%>%
   tidyr::pivot_longer(cols = c(3:6), names_to = "year_type", values_to = "Year")%>%
@@ -61,6 +63,58 @@ lh_ls_tl<-lh_long%>%
     TRUE ~ life_stage))%>%
   as.data.frame()
 
+
+###
+
+calves_mom_list<-split(calves, calves$MOM)
+calves_mom_list$`2-SCALLOPS`
+length(calves_mom_list)
+
+for (j in 1:length(calves_mom_list)){
+  x = as.data.frame(calves_mom_list[[j]])
+  print(x)
+  print(nrow(x))
+  print("skip")
+
+  for (i in 1:nrow(x)){
+    print(i)
+      wean_years<-photo_analysis_calfyear_sql%>%
+        filter(ID_NAME == x$calf[i] | ID_NAME == x$MOM[i])%>%
+        distinct(SURVEY_AREA, TRIP, DATETIME, ID_NAME, PHOTOGRAPHER, CALFYEAR)%>%
+        group_by(TRIP, DATETIME, PHOTOGRAPHER)%>%
+        mutate(n_time = n())%>%
+        #filter(CALFYEAR == 2018)%>%
+        arrange(DATETIME)%>%
+        filter(n_time > 1)%>%
+        ungroup()%>%
+        distinct(CALFYEAR)%>%
+        mutate(mom = x$MOM[i],
+               wean_year = "W")
+  
+  if (i != nrow(calves_test)){
+    wean_years<-wean_years%>%
+      filter(CALFYEAR < x$BIRTH_YEAR[i+1])
+  }
+
+  print(wean_years)
+  lh_ls_tl$YEAR<-as.numeric(lh_ls_tl$YEAR)
+  
+  lh_ls_tl<-lh_ls_tl%>%
+    left_join(wean_years, by = c("NAME" = "mom", "YEAR" = "CALFYEAR"))%>%
+    mutate(life_stage = case_when(
+      wean_year == "W" & life_stage == "A" ~ "W",
+      TRUE ~ life_stage
+    ))%>%
+    dplyr::select(-wean_year)
+  
+  print(lh_ls_tl%>%group_by(life_stage)%>%tally())
+  
+}
+}
+
+lh_ls_tl%>%
+  filter(NAME == "SN4")
+
 females_lifestage<-lh_ls_tl%>%
   left_join(female_last, by = "NAME")%>%
   filter(!is.na(last_year))%>%
@@ -72,6 +126,8 @@ females_lifestage<-lh_ls_tl%>%
   as.data.frame()
 
 
-ggplot(females_lifestage%>%filter(life_stage == "A" | life_stage == "U"))+
+ggplot(females_lifestage%>%filter(life_stage == "A" | life_stage == "U")%>%filter(YEAR != 2024))+
   geom_col(aes(x = YEAR, y = n, fill = life_stage))+
+  geom_point(data = calves%>%group_by(BIRTH_YEAR)%>%tally, mapping = aes(x = as.numeric(BIRTH_YEAR), y = n), size = 4, alpha = 0.5)+
+  geom_path(data = calves%>%group_by(BIRTH_YEAR)%>%tally, mapping = aes(x = as.numeric(BIRTH_YEAR), y = n), size = 1, alpha = 0.5)+
   facet_wrap(~POD)
