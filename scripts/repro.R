@@ -1,3 +1,5 @@
+library(odbc);library(dplyr);library(DBI);library(ggplot2)
+
 #reproductive assignment for available females
 
 source('~/git-otago/Fiordland_reporting/scripts/connect to MySQL.R', local = TRUE)$value
@@ -19,6 +21,7 @@ head(birth_calves)
 
 females<-lifehist%>%
   filter(SEX == "F")%>%
+  filter(NAME != "COMMON")%>%
   dplyr::select(-SEX)%>%
   dplyr::select(POD, NAME, FIRST_CALF, BIRTH_YEAR, FIRST_YEAR, LAST_YEAR)%>%
   filter(LAST_YEAR != "<NA>")
@@ -28,11 +31,13 @@ females_long<-females%>%
   filter(Year != "" & !is.na(Year))
 
 females_tl<-females_long%>%
+  filter(year_type != "LAST_YEAR")%>%
+  filter(year_type != "FIRST_YEAR")%>%
   bind_rows(birth_calves)%>%
   arrange(NAME, Year)
 
 head(females_tl)
-female_last<-females_tl%>%
+female_last<-females_long%>%
   filter(year_type == "LAST_YEAR")%>%
   dplyr::select(NAME, "last_year" = Year)
 
@@ -51,8 +56,10 @@ lh_ls_tl<-lh_long%>%
   ))%>%
   group_by(NAME, YEAR)%>%
   mutate(n = n())%>%
-  filter(!(n == 2 & year_type == "CALF_BIRTH"))%>%
+  #filter(NAME == "2-SCALLOPS")%>%
   ungroup()%>%
+  arrange(NAME, YEAR, year_type)%>%
+  filter(!(n == 2 & year_type == "CALF_BIRTH"))%>%
   mutate(life_stage_lag_lead = case_when(
     lag(year_type) == "CALF_BIRTH" | lag(year_type) == "FIRST_CALF" ~ "W",
     lead(year_type) == "CALF_BIRTH" | lead(year_type) == "FIRST_CALF" ~ "P",
@@ -91,7 +98,7 @@ for (j in 1:length(calves_mom_list)){
         mutate(mom = x$MOM[i],
                wean_year = "W")
   
-  if (i != nrow(calves_test)){
+  if (i != nrow(x)){
     wean_years<-wean_years%>%
       filter(CALFYEAR < x$BIRTH_YEAR[i+1])
   }
@@ -113,7 +120,7 @@ for (j in 1:length(calves_mom_list)){
 }
 
 lh_ls_tl%>%
-  filter(NAME == "SN4")
+  filter(NAME == "PAUA")
 
 females_lifestage<-lh_ls_tl%>%
   left_join(female_last, by = "NAME")%>%
@@ -121,13 +128,22 @@ females_lifestage<-lh_ls_tl%>%
   filter(YEAR <= last_year)%>%
   filter(life_stage != "<NA>")%>%
   filter(life_stage != "NA")%>%
+  arrange(NAME, YEAR)
+
+ls_tally<-females_lifestage%>%
   group_by(YEAR, POD, life_stage)%>%
   tally()%>%
   as.data.frame()
 
 
-ggplot(females_lifestage%>%filter(life_stage == "A" | life_stage == "U")%>%filter(YEAR != 2024))+
+available_f<-ls_tally%>%filter(life_stage == "A" | life_stage == "U")%>%filter(YEAR != 2024)
+
+ggplot(available_f)+
   geom_col(aes(x = YEAR, y = n, fill = life_stage))+
   geom_point(data = calves%>%group_by(BIRTH_YEAR)%>%tally, mapping = aes(x = as.numeric(BIRTH_YEAR), y = n), size = 4, alpha = 0.5)+
-  geom_path(data = calves%>%group_by(BIRTH_YEAR)%>%tally, mapping = aes(x = as.numeric(BIRTH_YEAR), y = n), size = 1, alpha = 0.5)+
+  geom_path(data = calves%>%group_by(BIRTH_YEAR)%>%tally, mapping = aes(x = as.numeric(BIRTH_YEAR), y = n), alpha = 0.5)+
   facet_wrap(~POD)
+
+
+females_lifestage%>%
+  filter(life_stage == "A" & YEAR == 2022)
