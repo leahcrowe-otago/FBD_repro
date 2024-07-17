@@ -138,12 +138,21 @@ ls_tally<-females_lifestage%>%
 
 available_f<-ls_tally%>%filter(life_stage == "A" | life_stage == "U")%>%filter(YEAR != 2024)
 
+
+calves_plot<-calves%>%
+  group_by(POD,BIRTH_YEAR)%>%
+  tally%>%
+  ungroup()%>%
+  add_row(POD = "DOUBTFUL",
+              BIRTH_YEAR = "2015",
+              n = 0)
+
 ggplot(available_f)+
   geom_col(aes(x = YEAR, y = n, fill = life_stage))+
-  geom_point(data = calves%>%group_by(BIRTH_YEAR)%>%tally, mapping = aes(x = as.numeric(BIRTH_YEAR), y = n), size = 4, alpha = 0.5)+
-  geom_path(data = calves%>%group_by(BIRTH_YEAR)%>%tally, mapping = aes(x = as.numeric(BIRTH_YEAR), y = n), alpha = 0.5)+
+  geom_point(data = calves_plot, mapping = aes(x = as.numeric(BIRTH_YEAR), y = n), size = 4, alpha = 0.5)+
+  geom_line(data = calves_plot, mapping = aes(x = as.numeric(BIRTH_YEAR), y = n), alpha = 0.5)+
   facet_wrap(~POD)
 
 
 females_lifestage%>%
-  filter(life_stage == "A" & YEAR == 2022)
+  filter(life_stage == "M" & YEAR == 2010)
