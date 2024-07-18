@@ -4,8 +4,6 @@ library(dplyr);library(ggplot2)
 download.file(url= "https://www.cpc.ncep.noaa.gov/data/indices/soi",
               destfile='./data/soi.txt', method='curl')
 
-soi<-read.delim('./data/soi.txt')
-
 soi<-readLines("./data/soi.txt")
 
 soi_stand<-data.frame(do.call(rbind, strsplit(soi[88:161], split="  ")), stringsAsFactors=FALSE)
@@ -52,9 +50,9 @@ ggplot(soi_mean%>%
   geom_col(aes(x = year_mo, y = SLP_index))+
   geom_line(aes(x = year_mo, y = mo_12))+
   scale_x_date()+
-  geom_col(data = calves, mapping = aes(x = year_mo, y = n/5, fill = POD), size = 1, alpha = 0.5)+
+  geom_col(data = calves, mapping = aes(x = lag_year_mo, y = n/5, fill = POD), size = 1, alpha = 0.5)+
   #geom_line(data = calves, mapping = aes(x = year_mo, y = n/5, color = POD, linetype = POD))+
-  geom_point(data = calves, mapping = aes(x = lag_year_mo, y = n/5, color = POD), size = 1, alpha = 0.5)+
+  #geom_point(data = calves, mapping = aes(x = lag_year_mo, y = n/5, color = POD), size = 1, alpha = 0.5)+
   facet_wrap(~POD)
   
   
