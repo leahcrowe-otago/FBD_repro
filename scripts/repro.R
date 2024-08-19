@@ -6,6 +6,7 @@ source('~/git-otago/Fiordland_reporting/scripts/connect to MySQL.R', local = TRU
 photo_analysis_calfyear_sql<-dbReadTable(con, "photo_analysis_calfyear")%>%filter(ID_NAME != "CULL")
 source('~/git-otago/Fiordland_reporting/scripts/life_history_ageclass update.R', local = TRUE)$value
 lifehist<-lifehist
+nrow(photo_analysis_calfyear_sql)
 
 calves<-lifehist%>%
   filter(!is.na(MOM) & MOM != "")%>%
@@ -127,8 +128,8 @@ lh_ls_fix<-lh_ls_tl%>%
   arrange(NAME, YEAR)%>%
   group_by(NAME)%>%
   mutate(life_stage = case_when(
-    (NAME == "GLOB" | NAME == "FIVE" | NAME == "WHITETIP") & 
-      (YEAR == "2007" | YEAR == "2008") ~ "W",
+    (NAME == "GAP" ) &
+      (YEAR == "2006") ~ "W",
     TRUE ~ life_stage
   ))%>%
   #get rid of false weaning by later times when mom/offspring seen together
@@ -173,7 +174,9 @@ ls_tally<-females_lifestage%>%
   mutate(agebin = case_when(
     age >= 25 ~ "25+",
     age >= 20 & age < 25 ~ "20-25",
-    age <= 20 ~ "<20"
+    age >= 15 & age < 20 ~ "15-20",
+    age >= 10 & age < 15 ~ "10-15",
+    age <= 20 ~ "<10"
   ))%>%
   mutate(life_stage2 = case_when(
     BIRTH_YEAR != "" ~  paste0(life_stage,"_",agebin),
@@ -201,15 +204,18 @@ ggplot(available_f)+
   geom_point(data = calves_plot, mapping = aes(x = as.numeric(BIRTH_YEAR), y = n), size = 4, alpha = 0.5)+
   geom_line(data = calves_plot, mapping = aes(x = as.numeric(BIRTH_YEAR), y = n), alpha = 0.5)+
   facet_wrap(~POD)+
+  xlim(c(2004,2023))+
   theme_bw()
 
 
 females_lifestage%>%
-  filter(life_stage == "A" & YEAR == 2020)
+  filter(life_stage == "A" & YEAR == 2017)%>%
+  arrange(POD)%>%
+  dplyr::select(NAME)
 
 
 wean_years<-photo_analysis_calfyear_sql%>%
-  filter(ID_NAME == "CORAL" | ID_NAME == "GLOB")%>%
+  filter(ID_NAME == "BACKSCRATCH" | ID_NAME == "BORAT")%>%
   distinct(SURVEY_AREA, TRIP, DATETIME, ID_NAME, PHOTOGRAPHER, CALFYEAR)%>%
   group_by(TRIP, DATETIME, PHOTOGRAPHER)%>%
   mutate(n_time = n())%>%
@@ -218,5 +224,8 @@ wean_years<-photo_analysis_calfyear_sql%>%
   filter(n_time > 1)%>%
   ungroup()%>%
   distinct(CALFYEAR)%>%
-  mutate(mom = "GLOB",
+  mutate(mom = "2-SCALLOPS",
          wean_year = "W")
+
+dbDisconnect(dbListConnections(drv=RMySQL::MySQL())[[1]])
+
