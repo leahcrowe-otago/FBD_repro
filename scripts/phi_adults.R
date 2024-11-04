@@ -19,6 +19,15 @@ obs_it<-obs_ch%>%dplyr::select(-ind,-POD,-ID_NAME,-SEX)%>%
 obs_ch_mat<-unname(obs_it)
 obs_ch_mat[1,]
 
+#fill in ch = 1 in years between sightings (there aren't any for DOUBTFUL, but maybe for Dusky?)
+for (i in 1:nrow(obs_it_mat)){
+  for (t in 2:(ncol(obs_it_mat)-1)){
+    if (obs_it_mat[i,t] == 0 & obs_it_mat[i,t-1] == 1 & obs_it_mat[i,t+1] == 1){
+      obs_it_mat[i,t] = 1
+    }
+  }
+
+}
 
 # number of individuals 
 n_ind <- nrow(obs_ch_mat) 
