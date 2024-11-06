@@ -8,26 +8,31 @@ library(dplyr)
 
 # mostly adults, some unk adults at the beginning
 # sex == X grouped with males since they have no calving history and only looking at adults here. 
-### Would like to estimate this instead of brute force
-saveRDS(obs_ch, file = paste0("./data/obs_ch_",Sys.Date(),".rds"))
+### should estimate this instead of brute force?
+data_date = "2024-11-06"
 
-ID<-obs_ch%>%dplyr::select(ind,ID_NAME,POD,SEX)
+obs_ch<-readRDS(paste0("./data/obs_ch_",data_date,".rds"))
 
-obs_it<-obs_ch%>%dplyr::select(-ind,-POD,-ID_NAME,-SEX)%>%
+ID_ch<-obs_ch%>%arrange(POD, ID_NAME)%>%dplyr::select(ind,ID_NAME,POD,pod_ch,SEX,sex_ch)
+ID_ch[is.na(ID_ch)]<-2 #unknown adults to males
+
+obs_it<-obs_ch%>%dplyr::select(-ind,-POD,-pod_ch,-ID_NAME,-SEX,-sex_ch)%>%
   as.matrix()
 
 obs_ch_mat<-unname(obs_it)
+obs_ch_mat[is.na(obs_ch_mat)]<-0
+obs_ch_mat[obs_ch_mat==2]<-1 #undo weaning info for now
 obs_ch_mat[1,]
 
-#fill in ch = 1 in years between sightings (there aren't any for DOUBTFUL, but maybe for Dusky?)
-for (i in 1:nrow(obs_it_mat)){
-  for (t in 2:(ncol(obs_it_mat)-1)){
-    if (obs_it_mat[i,t] == 0 & obs_it_mat[i,t-1] == 1 & obs_it_mat[i,t+1] == 1){
-      obs_it_mat[i,t] = 1
-    }
-  }
-
-}
+#fill in ch = 1 in years between sightings (not many)
+# for (i in 1:nrow(obs_it_mat)){
+#   for (t in 2:(ncol(obs_it_mat)-1)){
+#     if (obs_it_mat[i,t] == 0 & obs_it_mat[i,t-1] == 1 & obs_it_mat[i,t+1] == 1){
+#       obs_it_mat[i,t] = 1
+#     }
+#   }
+# 
+# }
 
 # number of individuals 
 n_ind <- nrow(obs_ch_mat) 
@@ -35,17 +40,10 @@ n_ind <- nrow(obs_ch_mat)
 # number of capture occasions
 n_occ <- ncol(obs_ch_mat)
 
-# compute date of first capture
+# first capture
 get.first<- function(x) min(which(x!=0))
 f<-apply(obs_ch_mat, 1, get.first)
 f
-
-# fixed effect, pod
-
-ID_ch<-ID%>%mutate(pod_ch = case_when(
-  POD == "DOUBTFUL" ~ 1,
-  POD == "DUSKY" ~ 2
-))
 
 ## model ----
 
@@ -55,7 +53,7 @@ model<-function(){
   for (i in 1:n_ind){
     for (t in 1:(n_occ-1)){
 
-      logit(phi[i,t]) <- alpha1[sex[i],t] + alpha2[pod[i],t]
+      logit(phi[i,t]) <- beta1[sex[i],t] + beta2[pod[i]]
       p[i,t] <- mean.p
     
     }
@@ -64,27 +62,26 @@ model<-function(){
   for (t in 1:(n_occ-1)){
     for (k in 1:2){
       for (j in 1:2){
-    logit(phi.est[k,j,t]) <- alpha1[k,t] + alpha2[j,t]
+    logit(phi.est[k,j,t]) <- beta1[k,t] + beta2[j]
   }}}
 
   # priors
+  
   for (t in 1:(n_occ-1)){
     
     for (k in 1:2){
-    alpha1[k,t] ~ dunif(0,1)
+      beta1[k,t] ~ dunif(0,1)}
     }
-    
-    for (j in 1:2){
-    alpha2[j,t] ~ dunif(0,1)
-    }
-  }
   
+    for (j in 1:2){
+      beta2[j] ~ dunif(0,1)
+    }
 # priors
 
   mean.p ~ dunif(0,1)
-  #sigma ~ dunif(0,5)
-  #tau<- pow(sigma, -2)
-  #sigma2<- pow(sigma, 2)
+  # sigma ~ dunif(0,5)
+  # tau<- pow(sigma, -2)
+  # sigma2<- pow(sigma, 2)
   
 # likelihood
   for (i in 1:n_ind){
@@ -108,9 +105,9 @@ mcmc.data<-list(
   f = f,
   n_occ = ncol(obs_ch_mat),
   pod = ID_ch$pod_ch,
-  sex = ID_ch$SEX) 
+  sex = ID_ch$sex_ch) 
 
-mcmc.params<-c("mean.p","phi.est")
+mcmc.params<-c("mean.p","phi.est","beta2")
 
 z.inits <- function(ch){
   state <- ch
@@ -124,15 +121,16 @@ z.inits <- function(ch){
 }
 
 mcmc.inits<-function(){list(z = z.inits(obs_ch_mat),
-                            alpha1 = matrix(rep(runif(2*(n_occ-1), 0, 1)), ncol =n_occ-1),
-                            alpha2 = matrix(rep(runif(2*(n_occ-1), 0, 1)), ncol =n_occ-1),
+                            beta1 = matrix(rep(runif(2*(n_occ-1), 0, 1)), ncol =n_occ-1),
+                            beta2 = runif(2, 0, 1),
                             mean.p = runif(1, 0, 1)
+                            #sigma = runif(1, 1, 5)
                             )}
 
 ## run model ----
 R2OpenBUGS::write.model(model,con="F_repro_model.txt") # write JAGS model code to file
 m1 = rjags::jags.model("F_repro_model.txt", data = mcmc.data, inits = mcmc.inits, n.chains = 3, n.adapt = 5000)
-out1 = coda.samples(model = m1, variable.names = mcmc.params, n.iter = 20000)
+out1 = coda.samples(model = m1, variable.names = mcmc.params, n.iter = 5000)
 out1_df = posterior::as_draws_df(out1)
 
 saveRDS(out1_df, file = paste0("./data/survival&cap_",Sys.Date(),".rds"))
@@ -149,13 +147,14 @@ results_year<-results%>%
          pod = rep(rep(c("Doubtful","Dusky"), each = 2), (n_occ-1)))
   
 
-ggplot(results_year%>%filter(!(pod == "Dusky" & Year < 2008) & Year < 2024), aes(x = Year, y = median, color = sex))+
-  geom_errorbar(aes(ymin = q5, ymax = q95))+
-  geom_point(size = 3)+
-  ylim(c(0.7,0.9))+
+ggplot(results_year, aes(x = Year, y = median, color = sex))+
+  geom_errorbar(aes(ymin = q5, ymax = q95), size = 1, alpha = 0.8)+
+  geom_point(size = 3, alpha = 0.8)+
+  #geom_line(aes(linetype = pod))+
+  ylim(c(0.7,1.0))+
   facet_wrap(~pod)+
   theme_bw()+
-  theme(legend.position = "bottom")+
+  #theme(legend.position = "bottom")+
   ylab(expression('Survival probability,' *phi))
 
-ggsave('./figures/surv_pod_sex.png', dpi = 300, width = 400, height = 200, units = "mm")
+ggsave('./figures/surv_pod_sex.png', dpi = 300, width = 300, height = 175, units = "mm")

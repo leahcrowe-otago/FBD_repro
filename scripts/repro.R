@@ -8,70 +8,19 @@ source('~/git-otago/Fiordland_reporting/scripts/life_history_ageclass update.R',
 lifehist<-lifehist
 nrow(photo_analysis_calfyear_sql)
 
+mothers<-lifehist%>%distinct(MOM)
+
 calves<-lifehist%>%
   filter(!is.na(MOM) & MOM != "")%>%
   dplyr::select(calf = NAME, SEX, MOM, BIRTH_YEAR, POD)
 
-birth_calves<-calves%>%
-  dplyr::select(-SEX, -calf)%>%
-  tidyr::pivot_longer(cols = c(2), names_to = "year_type", values_to = "Year")%>%
-  mutate(year_type = "CALF_BIRTH")%>%
-  dplyr::rename("NAME" = "MOM")
+# yr_season_code<-data.frame(CALFYEAR = c(rep(1990:2024, each = 4)),
+#            season_code = c(rep(1:4)),
+#            SEASON = c(rep(c("SPRING","SUMMER","AUTUMN","WINTER"))))
 
-head(birth_calves)
-
-females<-lifehist%>%
-  filter(SEX == "F")%>%
-  filter(NAME != "COMMON")%>%
-  dplyr::select(-SEX)%>%
-  dplyr::select(POD, NAME, FIRST_CALF, BIRTH_YEAR, FIRST_YEAR, LAST_YEAR)%>%
-  filter(LAST_YEAR != "<NA>")
-
-females_long<-females%>%
-  tidyr::pivot_longer(cols = c(3:6), names_to = "year_type", values_to = "Year")%>%
-  filter(Year != "" & !is.na(Year))
-
-females_tl<-females_long%>%
-  filter(year_type != "LAST_YEAR")%>%
-  filter(year_type != "FIRST_YEAR")%>%
-  filter(year_type != "BIRTH_YEAR")%>%
-  bind_rows(birth_calves)%>%
-  arrange(NAME, Year)
-
-head(females_tl)
-female_first_last<-lifehist%>%
-  filter(SEX == "F")%>%
-  dplyr::select(NAME, BIRTH_YEAR, FIRST_YEAR, LAST_YEAR)
-
-lh_long<-lifehist%>%
-  filter(SEX == "F")%>%
-  tidyr::pivot_longer(cols = 14:ncol(lifehist), names_to = "YEAR", values_to = "life_stage")%>%
-  dplyr::select(NAME, POD, YEAR, life_stage)
-
-lh_ls_tl<-lh_long%>%
-  left_join(females_tl, by = c("NAME" = "NAME", "YEAR" = "Year", "POD" = "POD"))%>%
-  mutate(life_stage = case_when(
-    year_type == "FIRST_CALF" ~ "F",
-    #year_type == "BIRTH_YEAR" ~ "C",
-    year_type == "CALF_BIRTH" ~ "M",
-    TRUE ~ life_stage
-  ))%>%
-  group_by(NAME, YEAR)%>%
-  mutate(n = n())%>%
-  #filter(NAME == "2-SCALLOPS")%>%
-  ungroup()%>%
-  arrange(NAME, YEAR, year_type)%>%
-  filter(!(n == 2 & year_type == "CALF_BIRTH"))%>%
-  mutate(life_stage_lag_lead = case_when(
-    #lag(year_type) == "CALF_BIRTH" | lag(year_type) == "FIRST_CALF" ~ "W",
-    lead(year_type) == "CALF_BIRTH" | lead(year_type) == "FIRST_CALF" ~ "P",
-    TRUE ~ NA
-  ))%>%
-  mutate(life_stage = case_when(
-    !is.na(life_stage_lag_lead) ~ life_stage_lag_lead,
-    TRUE ~ life_stage))%>%
-  as.data.frame()
-
+yr_season_code<-data.frame(CALFYEAR = c(rep(1990:2024, each = 2)),
+                         season_code = c(rep(1:2)),
+                         SEASON = c(rep(c("SPRING/SUMMER","AUTUMN/WINTER"))))
 
 ###
 
@@ -79,153 +28,159 @@ calves_mom_list<-split(calves, calves$MOM)
 length(calves_mom_list)
 calves_mom_list[[33]]
 
+n = length(calves_mom_list)
+mom_wean_list = list()
+mom_wean_list = vector("list", length = n)
+
 for (j in 1:length(calves_mom_list)){
+
   x = as.data.frame(calves_mom_list[[j]])
   print(x)
   print(nrow(x))
   print("skip")
 
+  n = nrow(x)
+  wean_season_list = list()
+  wean_season_list = vector("list", length = n)
+  
   for (i in 1:nrow(x)){
-    print(i)
-      wean_years<-photo_analysis_calfyear_sql%>%
+
+    #searches for mother/offspring in same photo
+      wean<-photo_analysis_calfyear_sql%>%
+        mutate(SEASON = case_when(
+          SEASON == "SPRING" | SEASON == "SUMMER" ~ "SPRING/SUMMER",
+          SEASON == "AUTUMN" | SEASON == "WINTER" ~ "AUTUMN/WINTER"))%>%
         filter(ID_NAME == x$calf[i] | ID_NAME == x$MOM[i])%>%
-        distinct(SURVEY_AREA, TRIP, DATETIME, ID_NAME, PHOTOGRAPHER, CALFYEAR)%>%
+        distinct(SURVEY_AREA, TRIP, DATETIME, ID_NAME, PHOTOGRAPHER, CALFYEAR, SEASON)%>%
         group_by(TRIP, DATETIME, PHOTOGRAPHER)%>%
         mutate(n_time = n())%>%
-        #filter(CALFYEAR == 2018)%>%
-        arrange(DATETIME)%>%
+        arrange(DATETIME,ID_NAME)%>%
+        ungroup()
+      
+      wean_seconds<-wean%>%
+        filter(n_time == 1)%>%
+        mutate(lag_name = lag(ID_NAME),
+               lead_name = lead(ID_NAME))%>%
+        filter((ID_NAME != lag_name) | (ID_NAME != lead_name))%>%
+        mutate(lag_time = ymd_hms(DATETIME) - lag(ymd_hms(DATETIME)),
+               lead_time = lead(ymd_hms(DATETIME)) - ymd_hms(DATETIME))%>%
+        filter(lag_time <= seconds(60) | lead_time <= seconds(60))%>%
+        distinct(CALFYEAR, SEASON)
+      
+      wean_season<-wean%>%
         filter(n_time > 1)%>%
-        ungroup()%>%
-        distinct(CALFYEAR)%>%
+        distinct(CALFYEAR, SEASON)%>%
+        bind_rows(wean_seconds)%>%
+        distinct(CALFYEAR, SEASON)%>%
         mutate(mom = x$MOM[i],
-               wean_year = "W")
+               calf = x$calf[i],
+               wean_season = "W")
   
   if (i != nrow(x)){
-    wean_years<-wean_years%>%
+    wean_season<-wean_season%>%
       filter(CALFYEAR < x$BIRTH_YEAR[i+1])
-  }
+    }
 
-  print(wean_years)
-  lh_ls_tl$YEAR<-as.numeric(lh_ls_tl$YEAR)
-  
-  lh_ls_tl<-lh_ls_tl%>%
-    left_join(wean_years, by = c("NAME" = "mom", "YEAR" = "CALFYEAR"))%>%
-    mutate(life_stage = case_when(
-      wean_year == "W" & life_stage == "A" ~ "W",
-      TRUE ~ life_stage
-    ))%>%
-    dplyr::select(-wean_year)
-  
-  print(lh_ls_tl%>%group_by(life_stage)%>%tally())
+      #wean_season$i <- i  # maybe you want to keep track of which iteration produced it?
+      wean_season_list[[i]] <- wean_season  
+      mom_wean_list[[j]]<-data.table::rbindlist(wean_season_list)
+      
+  print(wean_season)
   
 }
 }
 
-lh_ls_tl%>%
-  filter(NAME == "PAUA")
-
-lh_ls_fix<-lh_ls_tl%>%
-  arrange(NAME, YEAR)%>%
-  group_by(NAME)%>%
-  mutate(life_stage = case_when(
-    (NAME == "GAP" ) &
-      (YEAR == "2006") ~ "W",
-    TRUE ~ life_stage
-  ))%>%
-  #get rid of false weaning by later times when mom/offspring seen together
-  mutate(lag_ls = lag(life_stage))%>%
-  mutate(life_stage = case_when(
-    life_stage == "W" & lag_ls == "A" ~ "A",
-    TRUE ~ life_stage
-  ))%>% 
-  #gets rid of second time false weaning by later times when mom/offspring seen together
-  #most I've seen is 
-  mutate(lag_ls = lag(life_stage))%>%
-  mutate(life_stage = case_when(
-    life_stage == "W" & lag_ls == "A" ~ "A",
-    TRUE ~ life_stage
-  ))%>%
-  as.data.frame()
-
-females_lifestage<-lh_ls_fix%>%
-  filter(YEAR != 1990)%>% #rima and barcode both assigned W in 1990 for some reason
-  left_join(female_first_last, by = "NAME")%>%
-  filter(!is.na(LAST_YEAR))%>%
-  filter(YEAR <= LAST_YEAR)%>%
-  filter(life_stage != "<NA>")%>%
-  filter(life_stage != "NA")%>%
-  arrange(NAME, YEAR)%>%
-  group_by(NAME)%>%
-  mutate(min_first = as.numeric(min(FIRST_YEAR)),
-         min_year = as.numeric(min(YEAR)))%>%
-  ungroup()%>%
-  mutate(FIRST_YEAR = case_when(
-    min_year < min_first ~ min_year,
-    TRUE ~ min_first
-  ))%>%
-  mutate(age = case_when(
-    BIRTH_YEAR != "" ~ as.numeric(YEAR) - as.numeric(BIRTH_YEAR),
-    BIRTH_YEAR == "" | is.na(BIRTH_YEAR) ~ as.numeric(YEAR) - as.numeric(FIRST_YEAR)
-  ))
-
-unique(females_lifestage$BIRTH_YEAR)
-
-ls_tally<-females_lifestage%>%
-  mutate(agebin = case_when(
-    age >= 25 ~ "25+",
-    age >= 20 & age < 25 ~ "20-25",
-    age >= 15 & age < 20 ~ "15-20",
-    age >= 10 & age < 15 ~ "10-15",
-    age <= 20 ~ "<10"
-  ))%>%
-  mutate(life_stage2 = case_when(
-    BIRTH_YEAR != "" ~  paste0(life_stage,"_",agebin),
-    TRUE ~ paste0("U_",agebin)))%>%
-  group_by(YEAR, age, POD, life_stage,life_stage2)%>%
-  tally()%>%
-  as.data.frame()
-
-females_lifestage%>%
-  filter(life_stage == "M")%>%
-  filter(age > 25)
-
-available_f<-ls_tally%>%filter(life_stage == "A" | life_stage == "U")%>%filter(YEAR != 2024)
-
-calves_plot<-calves%>%
-  group_by(POD,BIRTH_YEAR)%>%
-  tally%>%
-  ungroup()%>%
-  add_row(POD = "DOUBTFUL",
-              BIRTH_YEAR = "2015",
-              n = 0)
-
-ggplot(available_f)+
-  geom_col(aes(x = YEAR, y = n, fill = life_stage2))+
-  geom_point(data = calves_plot, mapping = aes(x = as.numeric(BIRTH_YEAR), y = n), size = 4, alpha = 0.5)+
-  geom_line(data = calves_plot, mapping = aes(x = as.numeric(BIRTH_YEAR), y = n), alpha = 0.5)+
-  facet_wrap(~POD)+
-  xlim(c(2004,2023))+
-  theme_bw()
-
-
-females_lifestage%>%
-  filter(life_stage == "A" & YEAR == 2017)%>%
-  arrange(POD)%>%
-  dplyr::select(NAME)
-
-
-wean_years<-photo_analysis_calfyear_sql%>%
-  filter(ID_NAME == "BACKSCRATCH" | ID_NAME == "BORAT")%>%
-  distinct(SURVEY_AREA, TRIP, DATETIME, ID_NAME, PHOTOGRAPHER, CALFYEAR)%>%
-  group_by(TRIP, DATETIME, PHOTOGRAPHER)%>%
-  mutate(n_time = n())%>%
-  #filter(CALFYEAR == 2018)%>%
-  arrange(DATETIME)%>%
-  filter(n_time > 1)%>%
-  ungroup()%>%
-  distinct(CALFYEAR)%>%
-  mutate(mom = "2-SCALLOPS",
-         wean_year = "W")
+all_wean_ls<-as.data.frame(data.table::rbindlist(mom_wean_list))%>%
+  left_join(yr_season_code, by = c("CALFYEAR","SEASON"))%>%
+  dplyr::rename("NAME" = "mom")%>%
+  arrange(NAME, CALFYEAR, season_code)
 
 dbDisconnect(dbListConnections(drv=RMySQL::MySQL())[[1]])
 
+all_wean_females<-all_wean_ls%>%
+  # life hist relative to reproductive females
+  left_join(lifehist, by = c("NAME"))%>%
+  mutate(first_season = case_when(
+    month(ymd(FIRST_DATE)) >= 9 & month(ymd(FIRST_DATE)) <= 11 ~ paste0(as.numeric(year(FIRST_DATE))+1,"1"),
+    month(ymd(FIRST_DATE)) == 12 ~ paste0(as.numeric(year(FIRST_DATE))+1,"1"),
+    month(ymd(FIRST_DATE)) <= 2 ~ paste0(as.numeric(year(FIRST_DATE)),"1"),
+    month(ymd(FIRST_DATE)) >= 3 & month(ymd(FIRST_DATE)) <= 5 ~ paste0(as.numeric(year(FIRST_DATE)),"2"),
+    month(ymd(FIRST_DATE)) >= 6 & month(ymd(FIRST_DATE)) <= 8 ~ paste0(as.numeric(year(FIRST_DATE)),"2"),
+    TRUE ~ '999909'
+  ))%>%
+  mutate(last_season = case_when(
+    month(ymd(LAST_DATE)) >= 9 & month(ymd(LAST_DATE)) <= 11 ~ paste0(as.numeric(year(LAST_DATE))+1,"1"),
+    month(ymd(LAST_DATE)) == 12 ~ paste0(as.numeric(year(LAST_DATE))+1,"1"),
+    month(ymd(LAST_DATE)) <= 2 ~ paste0(as.numeric(year(LAST_DATE)),"1"),
+    month(ymd(LAST_DATE)) >= 3 & month(ymd(LAST_DATE)) <= 5 ~ paste0(as.numeric(year(LAST_DATE)),"2"),
+    month(ymd(LAST_DATE)) >= 6 & month(ymd(LAST_DATE)) <= 8 ~ paste0(as.numeric(year(LAST_DATE)),"2"),
+    TRUE ~ '999909'
+  ))%>%
+  dplyr::select(CALFYEAR, SEASON, season_code, POD, NAME, SEX, calf, wean_season, FIRST_CALF, BIRTH_YEAR, first_season, DEATH_YEAR, last_season)
+
+#filter(life_stage %in% c("A", "F", "P","W","M"))
+
+ggplot(all_wean_females%>%filter(CALFYEAR > 2004))+
+  geom_point(aes(x = as.numeric(last_season), y = NAME), size = 3)+
+  geom_point(aes(x = as.numeric(first_season), y = NAME), size = 3, color = "green")+
+  #geom_point(aes(x = as.numeric(BIRTH_YEAR), y = NAME), size = 3, color = "red")+
+  geom_point(aes(x = as.numeric(paste0(CALFYEAR,season_code)), y = NAME))+
+  facet_wrap(~POD, scales = "free")
+
+###
+
+## preparing cap history relative to reproduction
+# all females known to be reproductively active at some point
+
+obs_female_wean<-all_wean_females%>%
+  filter(CALFYEAR > 2003 & CALFYEAR < 2024,
+         !(POD == "DUSKY" & CALFYEAR < 2007))%>%
+  mutate(FIRST_CALF = as.numeric(FIRST_CALF))
+
+
+
+#####
+##old ##
+########
+
+
+repro_avail<-obs_females%>%
+  filter(YEAR > 2004 & YEAR < 2024,
+         !life_stage %in% c("C","J","S-A"),
+         !(POD == "DUSKY" & YEAR < 2008),
+         !is.na(Phase))
+
+repro_avail$Phase<-factor(repro_avail$Phase, levels = c("Unknown", "Available", "Weaning","Pregnant","Prima-pregnant"))
+
+tally<-readRDS("~/git-otago/Fiordland_reporting/data/tally_2024-10-29.rds")%>%
+  filter(!(POD == "DUSKY" & CALFYEAR < 2008))
+
+repro_avail_tally<-repro_avail%>%
+  group_by(POD, YEAR, Phase)%>%
+  mutate(Phase_n = n())%>%
+  left_join(tally, by = c("POD", "YEAR" = "CALFYEAR"))%>%
+  distinct(POD, YEAR, Phase, Phase_n)%>%
+  group_by(POD, YEAR)%>%
+  mutate(year_total = sum(Phase_n))
+
+#i don't think the below makes sense
+# fecund<-repro_avail_tally%>%filter(Phase == 'Reproductive')%>%
+#   mutate(fecundity_repro_participation = Phase_n/year_total)
+
+ggplot(repro_avail%>%filter(life_stage != 0))+
+  geom_histogram(aes(x = YEAR, fill = Phase), color = "black", binwidth = 1, alpha = 0.6)+
+  geom_point(tally, mapping = aes(x = CALFYEAR, y = calfyear_ng/2))+
+  geom_line(tally, mapping = aes(x = CALFYEAR, y = calfyear_ng/2))+
+  #geom_point(fecund, mapping = aes(x = YEAR, y = fecundity*30))+
+  #geom_line(fecund, mapping = aes(x = YEAR, y = fecundity*30))+
+  facet_wrap(~POD)+
+  theme_bw()+
+  theme(legend.position = "bottom")+
+  scale_y_continuous(name = "# Adult-ish females", sec.axis = sec_axis(~.*2, name = "Population size"))
+
+ggsave('./figures/count_avail.png', dpi = 600, width = 300, height = 230, units = "mm")
+
+ggplot(fecund)+
+  geom_point(mapping = aes(x = fecundity_repro_participation, y = Phase_n, color = as.factor(YEAR)))+
+  geom_smooth(mapping = aes(x = fecundity_repro_participation, y = Phase_n), method = 'lm')+
+  facet_wrap(~POD, scales = "free")
