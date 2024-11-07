@@ -18,6 +18,7 @@ ind_lh$CALFYEAR<-as.numeric(ind_lh$CALFYEAR)
 ind_lh$FIRST_CALF = as.numeric(ind_lh$FIRST_CALF)
 
 PA_long<-photo_analysis_calfyear_sql%>%
+  filter(SURVEY_AREA == "DOUBTFUL" | SURVEY_AREA == "DUSKY")%>% #only looking at doubtful and dusky complexes
   filter(CALFYEAR > 2007 & CALFYEAR < 2024)%>%
   distinct(SURVEY_AREA, ID_NAME, CALFYEAR, SEASON)%>%
   mutate(ch = 1)%>%
