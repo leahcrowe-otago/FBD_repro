@@ -9,7 +9,7 @@ library(dplyr)
 # mostly adults, some unk adults at the beginning
 # sex == X grouped with males since they have no calving history and only looking at adults here. 
 ### should estimate this instead of brute force?
-data_date = "2024-11-06"
+data_date = "2024-11-19"
 
 obs_ch<-readRDS(paste0("./data/obs_ch_",data_date,".rds"))
 
@@ -19,20 +19,31 @@ ID_ch[is.na(ID_ch)]<-2 #unknown adults to males
 obs_it<-obs_ch%>%dplyr::select(-ind,-POD,-pod_ch,-ID_NAME,-SEX,-sex_ch)%>%
   as.matrix()
 
+occ<-names(obs_ch)[6:(ncol(obs_ch)-2)]
+
 obs_ch_mat<-unname(obs_it)
 obs_ch_mat[is.na(obs_ch_mat)]<-0
 obs_ch_mat[obs_ch_mat==2]<-1 #undo weaning info for now
 obs_ch_mat[1,]
-sum(obs_ch_mat[1,])
-#fill in ch = 1 in years between sightings (not many)
-# for (i in 1:nrow(obs_it_mat)){
-#   for (t in 2:(ncol(obs_it_mat)-1)){
-#     if (obs_it_mat[i,t] == 0 & obs_it_mat[i,t-1] == 1 & obs_it_mat[i,t+1] == 1){
-#       obs_it_mat[i,t] = 1
-#     }
-#   }
-# 
-# }
+
+#doubtful_mat<-obs_ch_mat[1:70,]
+doubtful_mat<-obs_ch_mat[1:77,]
+#dusky_mat<-obs_ch_mat[71:n_ind,]
+dusky_mat<-obs_ch_mat[78:n_ind,]
+
+doubtful_sum<-NULL
+
+for (j in 1:n_occ){
+  doubtful_sum[j]<-sum(doubtful_mat[j,])
+  
+}
+
+dusky_sum<-NULL
+
+for (j in 1:n_occ){
+  dusky_sum[j]<-sum(dusky_mat[j,])
+  
+}
 
 # number of individuals 
 n_ind <- nrow(obs_ch_mat) 
@@ -76,21 +87,20 @@ model<-function(){
   }}}
   
     for (k in 1:2){
-      beta1[k] ~ dunif(0,1)
-      alpha1[k] ~ dunif(0,1)
+      beta1[k] ~ dnorm(0,1)
+      alpha1[k] ~ dnorm(0,1)
     }
   
     for (j in 1:2){
-      beta2[j] ~ dunif(0,1)
-      alpha2[j] ~ dunif(0,1)
+      beta2[j] ~ dnorm(0,1)
+      alpha2[j] ~ dnorm(0,1)
     }
 # priors
 
-  #mean.p ~ dunif(0,1)
-  sigma[1] ~ dunif(0,5)
-  sigma[2] ~ dunif(0,5)
-  tau[1] <- pow(sigma[1], -2)
-  tau[2] <- pow(sigma[2], -2)
+  sigma[1] = 1/sqrt(tau[1])
+  sigma[2] = 1/sqrt(tau[2])
+  tau[1] ~ dgamma(1,2)
+  tau[2] ~ dgamma(1,2)
   sigma2[1] <- pow(sigma[1], 2)
   sigma2[2] <- pow(sigma[2], 2)
   
@@ -138,7 +148,7 @@ mcmc.inits<-function(){list(z = z.inits(obs_ch_mat),
                             beta2 = runif(2, 0, 1),
                             alpha2 = runif(2, 0, 1),
                             #mean.p = runif(1, 0, 1),
-                            sigma = runif(2, 1, 5)
+                            tau = runif(2, 1, 5)
                             )}
 
 ## run model ----
@@ -146,29 +156,45 @@ R2OpenBUGS::write.model(model,con="F_repro_model.txt") # write JAGS model code t
 m1 = rjags::jags.model("F_repro_model.txt", data = mcmc.data, inits = mcmc.inits, n.chains = 3, n.adapt = 5000)
 out1 = coda.samples(model = m1, variable.names = mcmc.params, n.iter = 5000)
 out1_df = posterior::as_draws_df(out1)
-#2 is only doubtful and dusky survey areas
-saveRDS(out1_df, file = paste0("./data/survival&cap2_",Sys.Date(),".rds"))
+# survival&cap2 is only doubtful and dusky survey areas
+saveRDS(out1_df, file = paste0("./data/survival&cap_",Sys.Date(),".rds"))
+
+date = "2024-11-19"
+results_in<-readRDS(paste0("./data/survival&cap_",date,".rds"))
+results_in<-readRDS(paste0("./data/survival&cap2_",date,".rds"))
 
 #bayesplot::mcmc_trace(out1_df)
 results<-as.data.frame(summary(out1_df))
+results<-as.data.frame(summary(results_in))
 results
 
 results%>%
   filter(grepl("sigma", variable))%>%
   mutate(sigma2 = median^2)
 
+
+param_filter<-function(x){
+  results%>%
+    filter(grepl(x, variable))%>%
+    mutate(calfyr_season = c(rep(occ, each = 4)),
+           #sex = rep(rep(c("F","M","X"), each = 1), (n_occ-1)*2), 
+           sex = rep(rep(c("F","M"), each = 1), (n_occ-1)*2),
+           pod = rep(rep(c("Doubtful","Dusky"), each = 2), (n_occ-1)))%>%
+    mutate(CALFYEAR = stringr::str_sub(calfyr_season, 1, 4),
+           season = case_when(
+             nchar(calfyr_season) == 4 ~ 0,
+             nchar(calfyr_season) == 6 ~ 5
+           ))
+}
+
+
 ## surival prob
 
-results_phi<-results%>%
-  filter(grepl("phi.est", variable))%>%
-  mutate(CALFYEAR = c(rep(2008:2022, each = 8), rep(2023, each = 4)),
-         season = c(rep(rep(c(0,5),each = 4),(n_occ-1)/2), rep(0, each = 4)),
-         #sex = rep(rep(c("F","M","X"), each = 1), (n_occ-1)*2), 
-         sex = rep(rep(c("F","M"), each = 1), (n_occ-1)*2),
-         pod = rep(rep(c("Doubtful","Dusky"), each = 2), (n_occ-1)))%>%
-  mutate(calfyr_season = as.numeric(CALFYEAR) + (as.numeric(season)/10))
+results_phi<-param_filter("phi.est")
   
-ggplot(results_phi, aes(x = calfyr_season, y = median, color = sex))+
+library(ggplot2)
+
+ggplot(results_phi, aes(x = as.numeric(calfyr_season), y = median, color = sex))+
   geom_errorbar(aes(ymin = q5, ymax = q95), size = 1, alpha = 0.8)+
   geom_point(aes(shape = as.factor(season)), size = 3, alpha = 0.8)+
   #geom_line(aes(linetype = pod))+
@@ -179,19 +205,13 @@ ggplot(results_phi, aes(x = calfyr_season, y = median, color = sex))+
   ylab(expression('Survival probability,' *phi))
 
 ggsave('./figures/phi_pod_sex.png', dpi = 300, width = 300, height = 175, units = "mm")
+#ggsave('./figures/phi_pod_sex_SA.png', dpi = 300, width = 300, height = 175, units = "mm")
 
 ## capture prob
 
-results_p<-results%>%
-  filter(grepl("p.est", variable))%>%
-  mutate(CALFYEAR = c(rep(2008:2022, each = 8), rep(2023, each = 4)),
-         season = c(rep(rep(c(0,5),each = 4),(n_occ-1)/2), rep(0, each = 4)),
-         #sex = rep(rep(c("F","M","X"), each = 1), (n_occ-1)*2), 
-         sex = rep(rep(c("F","M"), each = 1), (n_occ-1)*2),
-         pod = rep(rep(c("Doubtful","Dusky"), each = 2), (n_occ-1)))%>%
-  mutate(calfyr_season = as.numeric(CALFYEAR) + (as.numeric(season)/10))
+results_p<-param_filter("p.est")
 
-ggplot(results_p, aes(x = calfyr_season, y = median, color = sex))+
+ggplot(results_p, aes(x = as.numeric(calfyr_season), y = median, color = sex))+
   geom_errorbar(aes(ymin = q5, ymax = q95), size = 1, alpha = 0.8)+
   geom_point(aes(shape = as.factor(season)),size = 3, alpha = 0.8)+
   #geom_line(aes(linetype = pod))+
@@ -202,3 +222,4 @@ ggplot(results_p, aes(x = calfyr_season, y = median, color = sex))+
   ylab(expression('Capture probability, p'))
 
 ggsave('./figures/p_pod_sex.png', dpi = 300, width = 300, height = 175, units = "mm")
+#ggsave('./figures/p_pod_sex_SA.png', dpi = 300, width = 300, height = 175, units = "mm")
