@@ -1,4 +1,4 @@
-library(odbc);library(dplyr);library(DBI);library(ggplot2)
+library(odbc);library(dplyr);library(DBI);library(ggplot2);library(lubridate)
 
 source('~/git-otago/Fiordland_reporting/scripts/connect to MySQL.R', local = TRUE)$value
 
@@ -10,21 +10,30 @@ lifehist<-lifehist
 ind_lh<-lifehist%>%
   filter(LAST_YEAR != "<NA>")%>%
   tidyr::pivot_longer(cols = c(14:48), names_to = "CALFYEAR", values_to = "Ageclass")%>%
-  filter(CALFYEAR > 2007)%>%
+  filter(CALFYEAR > 2004)%>% # 2008 has missing data in Doubtful
   #filter(NAME != "COMMON")%>%
   dplyr::select(POD, NAME, SEX, FIRST_CALF, BIRTH_YEAR, FIRST_YEAR, LAST_YEAR, CALFYEAR, Ageclass)
   
 ind_lh$CALFYEAR<-as.numeric(ind_lh$CALFYEAR)
 ind_lh$FIRST_CALF = as.numeric(ind_lh$FIRST_CALF)
 
-PA_long<-photo_analysis_calfyear_sql%>%
+###
+
+# this is used later for the timeline so keep year filter here
+PA_filter<-photo_analysis_calfyear_sql%>%
+  filter(CALFYEAR > 2004 & CALFYEAR < 2024)
+
+#only DOUBTFUL and DUSKY SA
+PA_filter_SA<-photo_analysis_calfyear_sql%>%
   filter(SURVEY_AREA == "DOUBTFUL" | SURVEY_AREA == "DUSKY")%>% #only looking at doubtful and dusky complexes
-  filter(CALFYEAR > 2007 & CALFYEAR < 2024)%>%
+  filter(CALFYEAR > 2004 & CALFYEAR < 2024)
+
+PA_long<-PA_filter%>%
   distinct(SURVEY_AREA, ID_NAME, CALFYEAR, SEASON)%>%
   mutate(ch = 1)%>%
   mutate(season_code = case_when(
-    SEASON == "SPRING" | SEASON == "SUMMER" ~ 1,
-    SEASON == "AUTUMN" | SEASON == "WINTER" ~ 2))%>%
+    SEASON == "SPRING" | SEASON == "SUMMER" ~ 0,
+    SEASON == "AUTUMN" | SEASON == "WINTER" ~ 5))%>%
   mutate(SEASON = case_when(
       SEASON == "SPRING" | SEASON == "SUMMER" ~ "SPRING/SUMMER",
       SEASON == "AUTUMN" | SEASON == "WINTER" ~ "AUTUMN/WINTER"))%>%
@@ -58,8 +67,8 @@ PA_long<-photo_analysis_calfyear_sql%>%
     POD == "DUSKY" ~ 2
   ))
 
-all_occasions<-data.frame(CALFYEAR = c(rep(2008:2023, each = 2)),
-                         season_code = c(rep(1:2)),
+all_occasions<-data.frame(CALFYEAR = c(rep(2005:2023, each = 2)),
+                         season_code = c(rep(c(0,5))),
                          SEASON = c(rep(c("SPRING/SUMMER","AUTUMN/WINTER"))))
 
 obs_ch<-all_occasions%>%
@@ -75,7 +84,45 @@ obs_ch<-all_occasions%>%
 
 nrow(obs_ch)
 
+#saveRDS(obs_ch, file = paste0("./data/SA_obs_ch_",Sys.Date(),".rds"))
 saveRDS(obs_ch, file = paste0("./data/obs_ch_",Sys.Date(),".rds"))
+
+## photo timeline
+yday("2014-09-01")
+
+PA_dates<-PA_filter%>%
+  left_join(lifehist, by = c("ID_NAME" = "NAME"))%>%
+  filter(POD == "DOUBTFUL" | POD == "DUSKY")%>%
+  distinct(DATE, CALFYEAR, SEASON, SURVEY_AREA, POD)%>%
+  mutate(Ordinal = yday(DATE))%>%
+  mutate(season_ordinal = Ordinal-244)%>%
+  mutate(season_ordinal = case_when(
+    season_ordinal < 0 ~ 365 + season_ordinal,
+    TRUE ~ season_ordinal
+  ))
+
+PA_dates%>%filter(is.na(POD))
+
+PA_timeline<-ggplot(PA_dates)+
+  geom_point(aes(x = season_ordinal, y = as.factor(CALFYEAR), color = SURVEY_AREA), size = 0.2)+
+  scale_x_continuous(breaks = c(1,32,60,91,121,152,182,213,244,274,305,335,366),
+                     labels = c("Sep","Oct","Nov","Dec","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug",""), limits = c(1,366))+
+  annotate("rect", xmin = 182, xmax = 366, ymin = as.factor(2005), ymax = as.factor(2023),
+           alpha = .1,fill = "blue")+
+  annotate("rect", xmin = 1, xmax = 181, ymin = as.factor(2005), ymax = as.factor(2023),
+           alpha = .1,fill = "orange")+
+  #scale_y_continuous(breaks = seq(min(data$Year), max(data$Year), by = 1))+
+  theme_bw()+
+  xlab("")+
+  ylab("Calendar year")+
+  theme(panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "bottom")+
+  facet_wrap(~POD)
+
+PA_timeline
+
+ggsave('./figures/PA_timeline.png', PA_timeline, dpi = 320, width = 200, height = 100, units = 'mm')
 
 ########################################
 
