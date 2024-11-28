@@ -9,9 +9,10 @@ library(dplyr)
 # mostly adults, some unk adults at the beginning
 # sex == X grouped with males since they have no calving history and only looking at adults here. 
 ### should estimate this instead of brute force?
-data_date = "2024-11-19"
+data_date = "2024-11-21"
 
 obs_ch<-readRDS(paste0("./data/obs_ch_",data_date,".rds"))
+obs_ch<-readRDS(paste0("./data/all_obs_ch_",data_date,".rds"))
 
 ID_ch<-obs_ch%>%arrange(POD, ID_NAME)%>%dplyr::select(ind,ID_NAME,POD,pod_ch,SEX,sex_ch)
 ID_ch[is.na(ID_ch)]<-2 #unknown adults to males
@@ -28,8 +29,10 @@ obs_ch_mat[1,]
 
 #doubtful_mat<-obs_ch_mat[1:70,]
 doubtful_mat<-obs_ch_mat[1:77,]
+doubtful_mat<-obs_ch_mat[1:132,]
 #dusky_mat<-obs_ch_mat[71:n_ind,]
 dusky_mat<-obs_ch_mat[78:n_ind,]
+dusky_mat<-obs_ch_mat[133:n_ind,]
 
 doubtful_sum<-NULL
 
@@ -158,10 +161,12 @@ out1 = coda.samples(model = m1, variable.names = mcmc.params, n.iter = 5000)
 out1_df = posterior::as_draws_df(out1)
 # survival&cap2 is only doubtful and dusky survey areas
 saveRDS(out1_df, file = paste0("./data/survival&cap_",Sys.Date(),".rds"))
+#saveRDS(out1_df, file = paste0("./data/all_survival&cap_",Sys.Date(),".rds")) # all age classes together
 
-date = "2024-11-19"
+date = "2024-11-21"
 results_in<-readRDS(paste0("./data/survival&cap_",date,".rds"))
 results_in<-readRDS(paste0("./data/survival&cap2_",date,".rds"))
+results_in<-readRDS(paste0("./data/all_survival&cap_",date,".rds"))
 
 #bayesplot::mcmc_trace(out1_df)
 results<-as.data.frame(summary(out1_df))
@@ -204,7 +209,8 @@ ggplot(results_phi, aes(x = as.numeric(calfyr_season), y = median, color = sex))
   #theme(legend.position = "bottom")+
   ylab(expression('Survival probability,' *phi))
 
-ggsave('./figures/phi_pod_sex.png', dpi = 300, width = 300, height = 175, units = "mm")
+#ggsave('./figures/phi_pod_sex.png', dpi = 300, width = 300, height = 175, units = "mm")
+ggsave('./figures/all_phi_pod_sex.png', dpi = 300, width = 300, height = 175, units = "mm")
 #ggsave('./figures/phi_pod_sex_SA.png', dpi = 300, width = 300, height = 175, units = "mm")
 
 ## capture prob
@@ -221,5 +227,6 @@ ggplot(results_p, aes(x = as.numeric(calfyr_season), y = median, color = sex))+
   #theme(legend.position = "bottom")+
   ylab(expression('Capture probability, p'))
 
-ggsave('./figures/p_pod_sex.png', dpi = 300, width = 300, height = 175, units = "mm")
+#ggsave('./figures/p_pod_sex.png', dpi = 300, width = 300, height = 175, units = "mm")
+ggsave('./figures/all_p_pod_sex.png', dpi = 300, width = 300, height = 175, units = "mm")
 #ggsave('./figures/p_pod_sex_SA.png', dpi = 300, width = 300, height = 175, units = "mm")
