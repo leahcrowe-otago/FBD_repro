@@ -73,7 +73,7 @@ all_occasions<-data.frame(CALFYEAR = c(rep(2005:2023, each = 2)),
 
 obs_ch<-all_occasions%>%
   left_join(PA_long, by = c("CALFYEAR","season_code","SEASON"))%>%
-  filter(Ageclass == "A" | Ageclass == "U")%>% # can consider allowing the year before first weaning to mean adult
+  #filter(Ageclass == "A" | Ageclass == "U")%>% # can consider allowing the year before first weaning to mean adult
   mutate(calfyr_season = CALFYEAR + (season_code/10))%>%
   ungroup()%>%
   dplyr::select(ID_NAME, POD, pod_ch, SEX, sex_ch, calfyr_season, repro_ch)%>%
@@ -85,7 +85,8 @@ obs_ch<-all_occasions%>%
 nrow(obs_ch)
 
 #saveRDS(obs_ch, file = paste0("./data/SA_obs_ch_",Sys.Date(),".rds"))
-saveRDS(obs_ch, file = paste0("./data/obs_ch_",Sys.Date(),".rds"))
+saveRDS(obs_ch, file = paste0("./data/all_obs_ch_",Sys.Date(),".rds"))
+#saveRDS(obs_ch, file = paste0("./data/obs_ch_",Sys.Date(),".rds"))
 
 ## photo timeline
 yday("2014-09-01")
