@@ -22,15 +22,13 @@ ind_lh$FIRST_CALF = as.numeric(ind_lh$FIRST_CALF)
 
 # this is used later for the timeline so keep year filter here
 PA_filter<-photo_analysis_calfyear_sql%>%
-  filter(CALFYEAR > 2004 & CALFYEAR < 2024)%>%
-  filter(!grepl("D-",ID_NAME))
+  filter(CALFYEAR > 2004 & CALFYEAR < 2024)
 unique(PA_filter$SURVEY_AREA)
 ##
 #only DOUBTFUL and DUSKY SA
 PA_filter_SA<-photo_analysis_calfyear_sql%>%
   filter(SURVEY_AREA == "DOUBTFUL" | SURVEY_AREA == "DUSKY")%>% #only looking at doubtful and dusky complexes
-  filter(CALFYEAR > 2004 & CALFYEAR < 2024)%>%
-  filter(!grepl("D-",ID_NAME))
+  filter(CALFYEAR > 2004 & CALFYEAR < 2024)
 unique(PA_filter_SA$SURVEY_AREA)
 
 ##########
@@ -166,53 +164,6 @@ obs_female_wean<-all_wean_females%>%
   mutate(FIRST_CALF = as.numeric(FIRST_CALF))
 head(obs_female_wean)
 
-#########
-
-PA_long<-function(x){
-  
-  x%>%
-    mutate(month = month(DATE))%>%
-    distinct(SURVEY_AREA, ID_NAME, CALFYEAR, month)%>%
-    mutate(ch = 1)%>%
-    mutate(season_code = case_when(
-      month >= 9 & month <= 12 ~ 0,
-      month >= 1 & month <= 4 ~ 0.33,
-      month >= 5 & month <= 8 ~ 0.67
-    ))%>%
-    arrange(CALFYEAR, season_code, ID_NAME)%>%
-    left_join(ind_lh, by = c("ID_NAME" = "NAME", "CALFYEAR"))%>%
-    mutate(age = case_when(
-      BIRTH_YEAR > 0 ~ CALFYEAR-as.numeric(BIRTH_YEAR),
-      BIRTH_YEAR == "" ~ CALFYEAR-as.numeric(FIRST_YEAR) #min_age
-    ))%>%
-    mutate(age_value = case_when(
-      BIRTH_YEAR > 0 ~ "actual", #birth year known
-      BIRTH_YEAR == "" ~ "est" #birth year not known
-    ))%>%
-    mutate(age = case_when( ## for some reproductive females, we can infer an older age based on calving history
-      age_value == "est" & as.numeric(FIRST_CALF) > 0 & (as.numeric(FIRST_CALF) - as.integer(avg_primo_age)) < as.numeric(FIRST_YEAR) ~ age + (as.integer(avg_primo_age) - (as.numeric(FIRST_CALF) - as.numeric(FIRST_YEAR))),
-      TRUE ~ age
-    ))%>%
-    mutate(sex_ch = case_when(
-      SEX == "F" ~ 1,
-      SEX == "M" ~ 2))%>%
-    left_join(obs_female_wean, by = c("ID_NAME" = "NAME", "POD", "CALFYEAR","season_code","SEX","FIRST_CALF","BIRTH_YEAR"))%>%
-    arrange(POD, ID_NAME, CALFYEAR, season_code)%>%
-    dplyr::select(-SURVEY_AREA)%>%
-    distinct()%>%
-    mutate(repro_ch = case_when(
-      wean_season == "W" ~ 2,
-      TRUE ~ 1
-    ))%>%
-    mutate(pod_ch = case_when(
-      POD == "DOUBTFUL" ~ 1,
-      POD == "DUSKY" ~ 2
-    ))
-}
-
-all<-PA_long(PA_filter)
-all_SA<-PA_long(PA_filter_SA)
-
 ## photo timeline ----
 yday("2017-05-01")
 
@@ -238,10 +189,6 @@ PA_timeline<-ggplot()+
   geom_point(PA_dates%>%filter(SURVEY_AREA == "DOUBTFUL" | SURVEY_AREA == "DUSKY"), mapping = aes(x = season_ordinal, y = as.numeric(CALFYEAR)), size = 1, shape = "square")+
   scale_x_continuous(breaks = c(0,30,61,91,122,153,181,212,242,273,303,334,366),
                      labels = c("Sep","Oct","Nov","Dec","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug",""), limits = c(0,366))+
-  # annotate("rect", xmin = 182, xmax = 366, ymin = as.factor(2008), ymax = as.factor(2023),
-  #          alpha = .1,fill = "blue")+
-  # annotate("rect", xmin = 1, xmax = 181, ymin = as.factor(2008), ymax = as.factor(2023),
-  #          alpha = .1,fill = "orange")+
   annotate("rect", xmin = 242, xmax = 366, ymin = 2005, ymax = 2023,
            alpha = .1,fill = "blue")+
   annotate("rect", xmin = 1, xmax = 122, ymin = 2005, ymax = 2023,
@@ -261,11 +208,11 @@ ggsave('./figures/PA_timeline.png', PA_timeline, dpi = 320, width = 200, height 
 
 #########
 
-#everyone
-
 all_photo<-photo_ID_season_code
 SA_photo<-photo_ID_season_code%>%
   filter(SURVEY_AREA == "DOUBTFUL" | SURVEY_AREA == "DUSKY")
+
+#everyone, all data / only in survey area
 
 final_ch<-function(x){
   x%>%
@@ -483,5 +430,3 @@ saveRDS(long_samp_SA, "./data/long_samp_SA.RDS")
 everyone_repro<-everyone%>%
   left_join(obs_female_wean, by = c("CALFYEAR", "season_code", "POD", "NAME", "SEX", "FIRST_CALF", "BIRTH_YEAR", "first_season", "DEATH_YEAR", "last_season"))
 
-loss<-everyone_ch%>%dplyr::select(POD, NAME, `2013.33`,`2013.67`,`2014`,`2014.33`,`2014.67`,`2015`)
-loss<-everyone_ch%>%dplyr::select(POD, NAME, `2016.33`, `2016.67`,`2017`,`2017.33`,`2017.67`,`2018`)
