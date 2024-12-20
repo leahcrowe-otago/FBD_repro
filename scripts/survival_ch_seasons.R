@@ -10,7 +10,7 @@ lifehist<-lifehist
 ind_lh<-lifehist%>%
   filter(LAST_YEAR != "<NA>")%>%
   tidyr::pivot_longer(cols = c(14:48), names_to = "CALFYEAR", values_to = "Ageclass")%>%
-  filter(CALFYEAR > 2004)%>% # 2008 has missing data in Doubtful
+  filter(CALFYEAR > 2008)%>% # 2008 has missing data in Doubtful
   #filter(NAME != "COMMON")%>%
   dplyr::select(POD, NAME, SEX, FIRST_CALF, BIRTH_YEAR, FIRST_YEAR, LAST_YEAR, CALFYEAR, Ageclass)
   
@@ -21,12 +21,12 @@ ind_lh$FIRST_CALF = as.numeric(ind_lh$FIRST_CALF)
 
 # this is used later for the timeline so keep year filter here
 PA_filter<-photo_analysis_calfyear_sql%>%
-  filter(CALFYEAR > 2004 & CALFYEAR < 2024)
+  filter(CALFYEAR > 2008 & CALFYEAR < 2024)
 
 #only DOUBTFUL and DUSKY SA
 PA_filter_SA<-photo_analysis_calfyear_sql%>%
   filter(SURVEY_AREA == "DOUBTFUL" | SURVEY_AREA == "DUSKY")%>% #only looking at doubtful and dusky complexes
-  filter(CALFYEAR > 2004 & CALFYEAR < 2024)
+  filter(CALFYEAR > 2008 & CALFYEAR < 2024)
 
 PA_long<-PA_filter%>%
   distinct(SURVEY_AREA, ID_NAME, CALFYEAR, SEASON)%>%
@@ -67,7 +67,7 @@ PA_long<-PA_filter%>%
     POD == "DUSKY" ~ 2
   ))
 
-all_occasions<-data.frame(CALFYEAR = c(rep(2005:2023, each = 2)),
+all_occasions<-data.frame(CALFYEAR = c(rep(2008:2023, each = 2)),
                          season_code = c(rep(c(0,5))),
                          SEASON = c(rep(c("SPRING/SUMMER","AUTUMN/WINTER"))))
 
@@ -105,17 +105,18 @@ PA_dates<-PA_filter%>%
 PA_dates%>%filter(is.na(POD))
 
 PA_timeline<-ggplot(PA_dates)+
-  geom_point(aes(x = season_ordinal, y = as.factor(CALFYEAR), color = SURVEY_AREA), size = 0.2)+
+  geom_point(aes(x = season_ordinal, y = as.factor(CALFYEAR)), size = 1)+
+  geom_point(PA_dates%>%filter(SURVEY_AREA != "DOUBTFUL" & SURVEY_AREA != "DUSKY"), mapping = aes(x = season_ordinal, y = as.factor(CALFYEAR)), color = "red", size = 2)+
   scale_x_continuous(breaks = c(1,32,60,91,121,152,182,213,244,274,305,335,366),
                      labels = c("Sep","Oct","Nov","Dec","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug",""), limits = c(1,366))+
-  annotate("rect", xmin = 182, xmax = 366, ymin = as.factor(2005), ymax = as.factor(2023),
+  annotate("rect", xmin = 182, xmax = 366, ymin = as.factor(2009), ymax = as.factor(2023),
            alpha = .1,fill = "blue")+
-  annotate("rect", xmin = 1, xmax = 181, ymin = as.factor(2005), ymax = as.factor(2023),
+  annotate("rect", xmin = 1, xmax = 181, ymin = as.factor(2009), ymax = as.factor(2023),
            alpha = .1,fill = "orange")+
   #scale_y_continuous(breaks = seq(min(data$Year), max(data$Year), by = 1))+
   theme_bw()+
   xlab("")+
-  ylab("Calendar year")+
+  ylab("Dolphin year (01Sep_{y-1}–31Aug_{y})")+
   theme(panel.grid.minor.x = element_blank(),
         panel.grid.minor.y = element_blank(),
         legend.position = "bottom")+
