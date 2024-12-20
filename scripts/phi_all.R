@@ -6,26 +6,45 @@ library(dplyr)
 
 # data ----
 
-# all ages
-# sex == X grouped with males since they have no calving history and only looking at adults here. 
-### should estimate this instead of brute force?
+# all data
 
-everyone_ch<-readRDS("./data/everyone_everywhere.RDS")
+everyone_ch_all<-readRDS("./data/everyone_everywhere.RDS")
+long_samp_ch_all<-readRDS("./data/long_samp.RDS") #skip 2007.67
+ID_per_day_all<-readRDS("./data/ID_per_day_all.RDS") 
 
-ID_ch<-everyone_ch%>%arrange(POD, NAME)%>%dplyr::select(ind,NAME,POD,pod_ch,SEX,sex_ch)
+ID_ch<-everyone_ch_all%>%arrange(POD, NAME)%>%dplyr::select(ind,NAME,POD,pod_ch,SEX,sex_ch)
 
-obs_it<-everyone_ch%>%dplyr::select(-ind,-POD,-pod_ch,-NAME,-SEX,-sex_ch,-ageclass)%>%
+obs_it<-everyone_ch_all%>%dplyr::select(-ind,-POD,-pod_ch,-NAME,-SEX,-sex_ch)%>%
   as.matrix()
 
-occ<-names(everyone_ch)[5:(ncol(everyone_ch)-4)]
+eff_it<-long_samp_ch_all%>%
+  dplyr::select(-POD)%>%
+  as.matrix()
+
+eff_it[eff_it > 0]<-1
+#eff_it[eff_it == 0]<-0.00001
+eff_mat<-unname(eff_it)
+
+occ<-names(everyone_ch_all)[5:(ncol(everyone_ch_all)-3)]
 
 obs_ch_mat<-unname(obs_it)
 obs_ch_mat[is.na(obs_ch_mat)]<-0
 #obs_ch_mat[obs_ch_mat==2]<-1 #undo weaning info for now
 obs_ch_mat[1,]
 
-doubtful_mat<-obs_ch_mat[1:166,]
-dusky_mat<-obs_ch_mat[167:n_ind,]
+# number of individuals 
+n_ind <- nrow(obs_ch_mat) 
+
+# number of capture occasions
+n_occ <- ncol(obs_ch_mat)
+
+doubtful_n<-everyone_ch_all%>%filter(POD == "DOUBTFUL")%>%
+  nrow()
+
+# number Doubtful
+doubtful_mat<-obs_ch_mat[1:doubtful_n,]
+# number Dusky
+dusky_mat<-obs_ch_mat[(doubtful_n+1):n_ind,]
 
 doubtful_sum<-NULL
 
@@ -41,12 +60,6 @@ for (j in 1:n_occ){
   
 }
 
-# number of individuals 
-n_ind <- nrow(obs_ch_mat) 
-
-# number of capture occasions
-n_occ <- ncol(obs_ch_mat)
-
 # first capture
 get.first<- function(x) min(which(x!=0))
 f<-apply(obs_ch_mat, 1, get.first)
@@ -59,44 +72,36 @@ model<-function(){
 # constraints
   for (i in 1:n_ind){
     for (t in 1:(n_occ-1)){
-
-      logit(phi[i,t]) <- beta1[sex[i]] + beta2[pod[i]] + epsilon[1,sex[i],pod[i],t]
-      logit(p[i,t]) <- alpha1[sex[i]] + alpha2[pod[i]] + epsilon[2,sex[i],pod[i],t]
-    
+      
+      logit(phi[i,t]) <- beta2[pod[i]] + epsilon[1,pod[i],t]
+      logit(p[i,t]) <-  alpha2[pod[i]] + epsilon[2,pod[i],t]
+      
+      }
     }
-  }
   
   for (t in 1:(n_occ-1)){
-    for (k in 1:2){
-      for (j in 1:2){
-    logit(phi.est[k,j,t]) <- beta1[k] + beta2[j] + epsilon[1,k,j,t]
-    logit(p.est[k,j,t]) <- alpha1[k] + alpha2[j] + epsilon[2,k,j,t]
-  }}}
+      for (j in 1:2){ # pod
+    logit(phi.est[j,t]) <- beta2[j] + epsilon[1,j,t]
+    logit(p.est[j,t]) <- alpha2[j] + epsilon[2,j,t]
+  }}
 
   # priors
   
   for (t in 1:(n_occ-1)){
-    for (k in 1:2){
       for (j in 1:2){
-    epsilon[1,k,j,t] ~ dnorm(0, tau[1])
-    epsilon[2,k,j,t] ~ dnorm(0, tau[2])
-  }}}
-  
-    for (k in 1:2){
-      beta1[k] ~ dnorm(0,1)
-      alpha1[k] ~ dnorm(0,1)
-    }
+    epsilon[1,j,t] ~ dnorm(0, tau[1])
+    epsilon[2,j,t] ~ dnorm(0, tau[2])
+  }}
   
     for (j in 1:2){
-      beta2[j] ~ dnorm(0,1)
-      alpha2[j] ~ dnorm(0,1)
+      beta2[j] ~ dt(0,1,3)
+      alpha2[j] ~ dt(0,1,3)
     }
-# priors
 
   sigma[1] = 1/sqrt(tau[1])
   sigma[2] = 1/sqrt(tau[2])
-  tau[1] ~ dgamma(1,2)
-  tau[2] ~ dgamma(1,2)
+  tau[1] ~ dscaled.gamma(1,3)
+  tau[2] ~ dscaled.gamma(1,3)
   sigma2[1] <- pow(sigma[1], 2)
   sigma2[2] <- pow(sigma[2], 2)
   
@@ -109,7 +114,7 @@ model<-function(){
       # state process
       z[i,t] ~ dbern(phi[i,t-1] * z[i,t-1])
       # observation process
-      y[i,t] ~ dbern(p[i,t-1] * z[i,t])
+      y[i,t] ~ dbern(p[i,t-1] * eff[pod[i],t] * z[i,t])
     }
   }
   
@@ -117,14 +122,14 @@ model<-function(){
 
 ## data ----
 mcmc.data<-list(
+  eff = eff_mat,
   y = obs_ch_mat,
   n_ind = nrow(obs_ch_mat),
   f = f,
   n_occ = ncol(obs_ch_mat),
-  pod = ID_ch$pod_ch,
-  sex = ID_ch$sex_ch) 
+  pod = ID_ch$pod_ch) 
 
-mcmc.params<-c("p.est","phi.est","beta1","beta2","alpha1","alpha2","sigma")
+mcmc.params<-c("p.est","phi.est","beta2","alpha2","sigma")
 
 z.inits <- function(ch){
   state <- ch
@@ -138,8 +143,8 @@ z.inits <- function(ch){
 }
 
 mcmc.inits<-function(){list(z = z.inits(obs_ch_mat),
-                            beta1 = runif(2, 0, 1),
-                            alpha1 = runif(2, 0, 1),
+                            #beta1 = runif(2, 0, 1),
+                            #alpha1 = runif(2, 0, 1),
                             #beta1 = matrix(rep(runif(2*(n_occ-1), 0, 1)), ncol =n_occ-1),
                             beta2 = runif(2, 0, 1),
                             alpha2 = runif(2, 0, 1),
@@ -149,81 +154,93 @@ mcmc.inits<-function(){list(z = z.inits(obs_ch_mat),
 
 ## run model ----
 R2OpenBUGS::write.model(model,con="F_repro_model.txt") # write JAGS model code to file
+rjags::load.module("glm")
 m1 = rjags::jags.model("F_repro_model.txt", data = mcmc.data, inits = mcmc.inits, n.chains = 3, n.adapt = 5000)
+update(m1) # another burn in
 out1 = coda.samples(model = m1, variable.names = mcmc.params, n.iter = 20000)
 out1_df = posterior::as_draws_df(out1)
-# survival&cap2 is only doubtful and dusky survey areas
-saveRDS(out1_df, file = paste0("./data/survival&cap_",Sys.Date(),".rds"))
-#saveRDS(out1_df, file = paste0("./data/all_survival&cap_",Sys.Date(),".rds")) # all age classes together
+
+saveRDS(out1_df, file = paste0("./data/survival&cap_all",Sys.Date(),".rds"))
 
 ## Results ----
-date = "2024-12-10"
-results_in<-readRDS(paste0("./data/survival&cap_",date,".rds"))
+date = "2024-12-19"
+results_in_all<-readRDS(paste0("./data/survival&cap_all",date,".rds"))
 
-results<-as.data.frame(summary(results_in))
-results
-min(results$ess_bulk)
+results_all<-as.data.frame(summary(results_in_all))
+results_all
+min(results_all$ess_bulk)
 
-results%>%
+results_all%>%
   filter(grepl("sigma", variable))%>%
   mutate(sigma2 = median^2)
 
-results%>%
+results_all%>%
   filter(grepl("phi.est", variable))
 
+## surival prob # not identifiable at last occasion
+occasions<-names(long_samp_ch_all)
 
-param_filter<-function(x){
-  results%>%
-    filter(grepl(x, variable))%>%
-    mutate(calfyr_season = c(rep(occ, each = 4)),
-           #sex = rep(rep(c("F","M","X"), each = 1), (n_occ-1)*2), 
-           sex = rep(rep(c("F","M"), each = 1), (n_occ-1)*2),
-           pod = rep(rep(c("Doubtful","Dusky"), each = 2), (n_occ-1)))%>%
-    mutate(season = c(rep(rep(1:3, each = 4), 15),rep(1,4),rep(2,4)))
-}
+ID_per_day_all$year_season_code<-as.character(ID_per_day_all$year_season_code)
 
-
-
-## surival prob
-
-results_phi<-param_filter("phi.est")
+results_phi_all<- results_all%>%
+  filter(grepl("phi.est", variable))%>%
+  mutate(calfyr_season = (rep(names(long_samp_ch_all)[2:(n_occ)], each = 2)), # skip 2006.07
+         pod = rep(rep(c("DOUBTFUL","DUSKY"), each = 1), (n_occ-1)))%>%
+  mutate(season = case_when(
+    grepl(".33", calfyr_season) ~ "Summer",
+    grepl(".67", calfyr_season) ~ "Winter",
+    TRUE ~ "Spring"
+  ))%>%
+  left_join(ID_per_day_all, by = c("calfyr_season" = "year_season_code", "pod" = "POD","season"))%>%
+  mutate(eff = case_when(
+    IDperDay != 0 ~ "effort",
+    TRUE ~ "no effort"))%>%
+  mutate(area = "All areas")
   
 library(ggplot2)
 
-ggplot(results_phi, aes(x = as.numeric(calfyr_season), y = median, color = sex))+
-  geom_errorbar(aes(ymin = q5, ymax = q95), size = 1, alpha = 0.8)+
-  geom_point(aes(shape = as.factor(season)), size = 3, alpha = 0.8)+
-  #geom_line(aes(linetype = pod))+
-  #ylim(c(0.7,1.0))+
+ggplot(results_phi_all, aes(x = as.numeric(calfyr_season), y = median))+
+  geom_errorbar(aes(ymin = q5, ymax = q95, color = eff), size = 1, alpha = 0.8)+
+  geom_point(aes(shape = as.factor(season), color = eff), size = 3, alpha = 0.8)+
   facet_wrap(~pod)+
   theme_bw()+
   theme(legend.position = "bottom")+
-  scale_x_continuous(breaks = c(2008:2024))+
+  scale_x_continuous(breaks = c(2005:2024))+
   theme(axis.text.x=element_text(angle=90, vjust=0.5))+
   xlab(expression('Dolphin year (01Sep_{year-1}–31Aug_{year})'))+
   ylab(expression('Survival probability,' *phi))
 
-#ggsave('./figures/phi_pod_sex.png', dpi = 300, width = 300, height = 175, units = "mm")
-ggsave('./figures/all_phi_pod_sex.png', dpi = 300, width = 300, height = 175, units = "mm")
-#ggsave('./figures/phi_pod_sex_SA.png', dpi = 300, width = 300, height = 175, units = "mm")
+ggsave('./figures/all_phi_pod.png', dpi = 300, width = 300, height = 175, units = "mm")
 
-## capture prob
+## capture prob # not identifiable at first occasion
 
-results_p<-param_filter("p.est")
+results_p_all<-results_all%>%
+  filter(grepl("p.est", variable))%>%
+  mutate(calfyr_season = rep(names(long_samp_ch_all)[3:(n_occ+1)], each = 2),
+         pod = rep(rep(c("DOUBTFUL","DUSKY"), each = 1), (n_occ-1)))%>%
+  mutate(season = case_when(
+    grepl(".33", calfyr_season) ~ "Summer",
+    grepl(".67", calfyr_season) ~ "Winter",
+    TRUE ~ "Spring"
+  ))%>%
+  left_join(ID_per_day_all, by = c("calfyr_season" = "year_season_code", "pod" = "POD","season"))%>%
+  mutate(eff = case_when(
+    IDperDay != 0 ~ "effort",
+    TRUE ~ "no effort"))%>%
+  mutate(area = "All areas")
 
-ggplot(results_p, aes(x = as.numeric(calfyr_season), y = median, color = sex))+
-  geom_errorbar(aes(ymin = q5, ymax = q95), size = 1, alpha = 0.8)+
-  geom_point(aes(shape = as.factor(season)),size = 3, alpha = 0.8)+
+ggplot(results_p_all, aes(x = as.numeric(calfyr_season), y = median))+
+  geom_errorbar(aes(ymin = q5, ymax = q95, color = eff), size = 1, alpha = 0.8)+
+  geom_point(aes(shape = as.factor(season), color = eff),size = 3, alpha = 0.8)+
   #geom_line(aes(linetype = pod))+
   ylim(c(0.0,1.0))+
   facet_wrap(~pod)+
   theme_bw()+
-  scale_x_continuous(breaks = c(2009:2024))+
+  scale_x_continuous(breaks = c(2005:2024))+
   theme(axis.text.x=element_text(angle=90, vjust=0.5))+
   theme(legend.position = "bottom")+
   xlab(expression('Dolphin year (01Sep_{year-1}–31Aug_{year})'))+
   ylab(expression('Capture probability, p'))
 
-#ggsave('./figures/p_pod_sex.png', dpi = 300, width = 300, height = 175, units = "mm")
-ggsave('./figures/all_p_pod_sex.png', dpi = 300, width = 300, height = 175, units = "mm")
-#ggsave('./figures/p_pod_sex_SA.png', dpi = 300, width = 300, height = 175, units = "mm")
+ggsave('./figures/all_p_pod.png', dpi = 300, width = 300, height = 175, units = "mm")
+

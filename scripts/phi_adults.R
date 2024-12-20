@@ -163,6 +163,7 @@ out1_df = posterior::as_draws_df(out1)
 saveRDS(out1_df, file = paste0("./data/survival&cap_",Sys.Date(),".rds"))
 #saveRDS(out1_df, file = paste0("./data/all_survival&cap_",Sys.Date(),".rds")) # all age classes together
 
+## Results ----
 date = "2024-11-21"
 results_in<-readRDS(paste0("./data/survival&cap_",date,".rds"))
 results_in<-readRDS(paste0("./data/survival&cap2_",date,".rds"))

@@ -1,4 +1,7 @@
 
+# results from phi_all.R & phi_SA.R
+
+## all data vs all data from only doubtful and dusky complexes
 
 results_phi<-results_phi_all%>%
   bind_rows(results_phi_SA)
