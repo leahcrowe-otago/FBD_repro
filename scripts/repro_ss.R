@@ -236,10 +236,22 @@ final_ch<-function(x){
   mutate(age = case_when(
     BIRTH_YEAR > 1 ~ year_season_code - as.numeric(BIRTH_YEAR),
     TRUE ~ year_season_code - as.numeric(first_season)))%>%
-  mutate(ageclass = case_when(
+  mutate(age_value = case_when(
+    BIRTH_YEAR > 0 ~ "actual", #birth year known
+    BIRTH_YEAR == "" ~ "est" #birth year not known
+    ))%>%
+  mutate(age = case_when( ## for some reproductive females, we can infer an older age based on calving history
+    age_value == "est" & as.numeric(FIRST_CALF) > 0 & (as.numeric(FIRST_CALF) - as.integer(avg_primo_age)) < as.numeric(first_season) ~ age + (as.integer(avg_primo_age) - (as.numeric(FIRST_CALF) - as.numeric(first_season))),
+    TRUE ~ age
+    ))%>%
+  mutate(ageclass = case_when( # PA = pre-adult
+    NAME == "2006CALFOFTIP" ~ "PA", #first sighted in Oct 2006, small, but too big to be just born that spring
     age >= as.integer(avg_primo_age) ~ "A",
-    BIRTH_YEAR > 1 & age < as.integer(avg_primo_age) ~ "N",
-    TRUE ~ "U"
+    BIRTH_YEAR == '' & age >= as.integer(avg_primo_age)-1 ~ "A",
+    BIRTH_YEAR > 0 & age <= 1 ~ "C",
+    BIRTH_YEAR > 0 & age < avg_primo_age ~ "PA",
+    BIRTH_YEAR == '' & age < as.integer(avg_primo_age)-1 ~ "U",
+    TRUE ~ "X"
   ))%>%
   filter(year_season_code >= 2005 & year_season_code < 2024)%>%
   distinct()
@@ -304,6 +316,44 @@ summary(everyone_SA_ch)
 saveRDS(everyone_ch, "./data/everyone_everywhere.RDS")
 # Go to phi_SA*.R
 saveRDS(everyone_SA_ch, "./data/everyone_SA.RDS")
+
+### ageclass
+
+ch_ageclass<-function(x){
+  x%>%
+    dplyr::select(-age)%>%
+    ungroup()%>%
+    arrange(year_season_code)%>%
+    mutate(ageclass_ch = case_when(
+      ageclass == "C" ~ 1,
+      ageclass == "PA" ~ 2,
+      ageclass == "U" ~ 2,
+      ageclass == "A" ~ 3
+    ))%>%
+    distinct(POD, NAME, SEX, year_season_code, ageclass_ch)%>%
+    tidyr::pivot_wider(names_from = year_season_code, values_from = ageclass_ch)%>%
+    arrange(POD, SEX)%>%
+    group_by(POD)%>%
+    mutate(
+      ind = 1:n(),  
+      pod_ch = case_when(
+        POD == "DOUBTFUL" ~ 1,
+        POD == "DUSKY" ~ 2))%>%
+    mutate(sex_ch = case_when(
+      SEX == "F" ~ 1,
+      SEX == "M" ~ 2,
+      SEX == "X" ~ 2
+    ))
+}
+
+everyone_ageclass_ch<-ch_ageclass(everyone)
+
+# scaled
+everyone_scaled<-everyone%>%ungroup%>%filter(year_season_code >= 2009.33 & year_season_code <= 2013.33)
+everyone_ageclass_ch<-ch_ageclass(everyone_scaled)%>%filter(!is.na(`2009.33`))%>%group_by(POD)%>%slice_head(n = 20)%>%ungroup()%>%filter(POD == "DOUBTFUL")
+
+# Go to phi_all_ageclass*.R
+saveRDS(everyone_ageclass_ch, "./data/everyone_ageclass_ch.RDS")
 
 ### 
 ## Effort ----
@@ -425,6 +475,10 @@ long_samp_SA<-ID_per_day_SA%>%
   tidyr::pivot_wider(names_from = year_season_code, values_from = n.x)
 
 saveRDS(long_samp_SA, "./data/long_samp_SA.RDS") 
+
+## ch history with age class
+
+everyone
 
 # merge everyone with the reproductive females
 everyone_repro<-everyone%>%
