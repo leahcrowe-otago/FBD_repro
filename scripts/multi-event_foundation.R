@@ -4,7 +4,7 @@ library(jagsUI)
 library(rjags)
 library(dplyr)
 
-# Read in the data: 
+# data ----
 
 long_samp_ch_all<-readRDS("./data/long_samp.RDS") #skip 2007.67
 eff_it<-long_samp_ch_all%>%
@@ -14,124 +14,220 @@ eff_it<-long_samp_ch_all%>%
 eff_it[eff_it > 0]<-1
 eff_mat<-unname(eff_it)
 
-everyone_ch_all<-readRDS("./data/everyone_everywhere.RDS")%>%group_by(POD)%>%slice_head(n = 40)%>%ungroup()
-everyone_ch_all$pod_ch
-obs_it<-everyone_ch_all%>%dplyr::select(-ind,-POD,-pod_ch,-NAME,-SEX,-sex_ch)%>%
+everyone_ch_age<-readRDS("./data/everyone_ageclass_ch.RDS")%>%group_by(POD)%>%slice_head(n = 40)%>%ungroup()
+everyone_ch_age$pod_ch
+obs_it<-everyone_ch_age%>%dplyr::select(-ind,-POD,-pod_ch,-NAME,-SEX,-sex_ch)%>%
   as.matrix()
 obs_ch_mat<-unname(obs_it)
 obs_ch_mat[is.na(obs_ch_mat)]<-0
-obs_ch_mat[(obs_ch_mat>0)]<-1
-mydata <- obs_ch_mat
+
+#mydata <- obs_ch_mat
+
+pod_ch<-everyone_ch_age$pod_ch
 
 #mydata <- read.table('dipper.txt')
-head(mydata)
-dim(mydata)
-# remove counts
-#mydata <- mydata[,-8]
-N <- dim(mydata)[1]
-K <- dim(mydata)[2]
+head(obs_ch_mat)
+dim(obs_ch_mat)
+
+# number of individuals 
+n_ind <- nrow(obs_ch_mat) 
+
+# number of capture occasions
+n_occ <- ncol(obs_ch_mat)
+
+#NAs for non observed occasions
+for (i in 1:n_ind){
+for (t in 1:n_occ){
+  for (j in 1:2){
+  if (eff_mat[j,t] == 0 & pod_ch[i] == j){
+    obs_ch_mat[i,t] <- NA
+
+  }}}}
+
+obs_ch_mat
 
 # Compute the date of first capture for each individual:
-e <- NULL
-for (i in 1:N){
-  temp <- 1:K
-  e <- c(e,min(temp[mydata[i,]>=1]))}
+f <- NULL
+for (i in 1:n_ind){
+  temp <- 1:n_occ
+  f <- c(f,min(temp[obs_ch_mat[i,]>=1], na.rm = T))}
 
-e
+f
+
+## set up z values ----
+#remove NA values from age data by replacing with inferred age values OR 0 (1 gets added later because 0 is not a latent state)
+
+z_data <- obs_ch_mat
+
+for (i in 1:n_ind){
+  if(is.na(z_data[i,11]) && is.na(z_data[i,12]) && z_data[i,10] == z_data[i,13]){
+    z_data[i,11] <- z_data[i,10]
+    z_data[i,12] <- z_data[i,10]
+    print(i)
+  }} 
+
+for (i in 1:n_ind){  
+  for (j in 1:n_occ){
+    if (is.na(z_data[i,j])){
+      if (!is.na(z_data[i,(j-1)]) && !is.na(z_data[i,(j+1)]) && (z_data[i,(j-1)] == z_data[i,(j+1)])){
+        z_data[i,j] <- z_data[i,j+1]
+        print('1')
+        print(c(i,j))
+      } else if (!is.na(z_data[i,(j-1)]) && !is.na(z_data[i,(j+2)]) && (z_data[i,(j-1)] == z_data[i,(j+2)])){
+        z_data[i,j] <- z_data[i,j+2]
+        print('2')
+        print(c(i,j))
+      } else if (i > f[i]){
+        z_data[i,j] <- 0
+        print('3')
+        print(f[i])
+        print(c(i,j))
+      }
+    }
+  }
+}
+
+z_data
 
 # model -----
 model <- function() {
   
-  # OBSERVATIONS
+  # OBSERVATIONS ----
   # 1 = non-detected
-  # 2 = detected
+  # 2 = detected as pre adult
+  # 3 = detected as adult 
   
-  # STATES
-  # 1 = alive
-  # 2 = dead
+  # STATES -----
+  # 1 = pre-adult alive
+  # 2 = adult alive
+  # 3 = dead
   
-  # PARAMETERS
-  # phi  survival
-  # p detection
+  # PARAMETERS ----
+  # phiPA  survival prob of pre-adults
+  # phiA  survival prob of adults
+  
+  # pPA detectiondetection prob. of pre-adults 
+  # pA  detection prob. of adults
+  
+  # psiPAA transition prob. from pre-adult to adult
+  
+  # piPA prob of being in initial state pre-adult
   
 # constraints ----
-  for (i in 1:N){
-    for (t in 1:(K-1)){
-      logit(phi[i,t]) <- beta2[pod[i]] + epsilon[1,pod[i],t]
-      logit(p[i,t]) <-  alpha2[pod[i]] + epsilon[2,pod[i],t]
+  for (i in 1:n_ind){
+    
+    for (t in 1:(n_occ-1)){
+      logit(pPA[i,t]) <-  alpha1[pod[i]] + epsilon[2,pod[i],t]
+      logit(pA[i,t]) <-  alpha2[pod[i]] + epsilon[2,pod[i],t]
+      
+      logit(phiPA[i,t]) <- beta1[pod[i]] + epsilon[1,pod[i],t]
+      logit(phiA[i,t]) <- beta2[pod[i]] + epsilon[1,pod[i],t]
+      
+      logit(psiPAA[i,t]) <- psi_mu[pod[i]] 
     }}
   
-  for (t in 1:(K-1)){
-    for (j in 1:2){ # pod
-      logit(phi.est[j,t]) <- beta2[j] + epsilon[1,j,t]
-      logit(p.est[j,t]) <- alpha2[j] + epsilon[2,j,t]
+  for (j in 1:2){ # pod
+    
+    for (t in 1:(n_occ-1)){
+    
+      logit(pPA.est[j,t]) <- alpha1[j] + epsilon[2,j,t]
+      logit(pA.est[j,t]) <- alpha2[j] + epsilon[2,j,t]
+      
+      logit(phiPA.est[j,t]) <- beta1[j] + epsilon[1,j,t]
+      logit(phiA.est[j,t]) <- beta2[j] + epsilon[1,j,t]
+      
+      logit(psiPAA.est[j,t]) <- psi_mu[j] 
+      
     }}
   
 # PARAMETERS	----
   # probabilities for each initial state
-  px0[1] <- 1 # prob. of being in initial state alive
-  px0[2] <- 0 # prob. of being in initial state dead
+  ps.init[1] <- piPA # prob. of being in initial state alive pre-adult
+  ps.init[2] <- 1 - piPA # probs of bring initial state alive adult 
+  ps.init[3] <- 0 # prob. of being in initial state dead
   
-  for (i in 1:N){
+  for (i in 1:n_ind){
     
-  # probabilities for each initial observation  
+  # probabilities for each initial observation ----  
     po.init[1,i,1] <- 0
     po.init[1,i,2] <- 1
-    po.init[2,i,1] <- 1
-    po.init[2,i,2] <- 0
+    po.init[1,i,3] <- 0
     
-    for (t in 1:(K-1)){
-  # OBSERVATION PROCESS: prob of z(t+1) given z(t), [z(t),i,t,z(t+1)] ----
+    po.init[2,i,1] <- 0
+    po.init[2,i,2] <- 0
+    po.init[2,i,3] <- 1
+    
+    po.init[3,i,1] <- 1
+    po.init[3,i,2] <- 0
+    po.init[3,i,3] <- 0
+    
+    for (t in 1:(n_occ-1)){
+  # OBSERVATION PROCESS: prob of y(t) given z(t) [z(t),i,t,y(t)]----
   # detection
-  po[1,i,t,1] <- 1 - (p[i,t] * eff[pod[i],t+1])
-  po[1,i,t,2] <- p[i,t] * eff[pod[i],t+1]
+  po[1,i,t,1] <- 1 - (pPA[i,t] * eff[pod[i],t+1]) # prob of nondetection given PA
+  po[1,i,t,2] <- pPA[i,t] * eff[pod[i],t+1] # prob of PA given detected as PA
+  po[1,i,t,3] <- 0
   
-  po[2,i,t,1] <- 1
-  po[2,i,t,2] <- 0
+  po[2,i,t,1] <- 1 - (pA[i,t] * eff[pod[i],t+1]) # prob of nondetection given A
+  po[2,i,t,2] <- 0 # prob of A given detected as PA (is 0 now, but should add delta variable)
+  po[2,i,t,3] <- pA[i,t] * eff[pod[i],t+1] # prob detected as adult given it is an adult
   
-  # STATE PROCESS: prob of y(t) given z(t) [z(t),i,t,y(t)]----
+  po[3,i,t,1] <- 1 # prob of nondetection given it is dead
+  po[3,i,t,2] <- 0 # prob of PA given it is dead
+  po[3,i,t,3] <- 0 # prob of PA given it is dead
+  
+  # STATE PROCESS: prob of z(t+1) given z(t), [z(t),i,t,z(t+1)] ----
   # survival
-  px[1,i,t,1] <- phi[i,t]
-  px[1,i,t,2] <- 1 - phi[i,t]
+  ps[1,i,t,1] <- phiPA[i,t] * (1 - psiPAA[i,t])
+  ps[1,i,t,2] <- phiPA[i,t] * psiPAA[i,t]
+  ps[1,i,t,3] <- 1 - phiPA[i,t]
   
-  px[2,i,t,1] <- 0
-  px[2,i,t,2] <- 1
+  ps[2,i,t,1] <- 0
+  ps[2,i,t,2] <- phiA[i,t]
+  ps[2,i,t,3] <- 1 - phiA[i,t]
+  
+  ps[3,i,t,1] <- 0
+  ps[3,i,t,2] <- 0
+  ps[3,i,t,3] <- 1
   
   }
   }
 
   
-  for (i in 1:N){  # for each indiv
+  for (i in 1:n_ind){  # for each indiv
   
     # estimated probabilities of initial states are the proportions in each state at first capture occasion
-    z[i,f[i]] ~ dcat(px0[1:2])
-    y[i,f[i]] ~ dcat(po.init[z[i,f[i]],i,1:2])
+    z[i,f[i]] ~ dcat(ps.init[1:3])
+    y[i,f[i]] ~ dcat(po.init[z[i,f[i]],i,1:3])
+    #z[i,f[i]] ~ y[i,f[i]]
     
-    for (t in (f[i]+1):K){  # loop over time
+    for (t in (f[i]+1):n_occ){  # loop over time
       
       ## STATE EQUATIONS ##
       # draw states at t given states at t-1
-      z[i,t] ~ dcat(px[z[i,t-1],i, t-1,1:2])
+      z[i,t] ~ dcat(ps[z[i,t-1],i, t-1,1:3])
       
       ## OBSERVATION EQUATIONS ##
       # draw observations at t given states at t
-      y[i,t] ~ dcat(po[z[i,t],i, t-1,1:2])
+      y[i,t] ~ dcat(po[z[i,t],i, t-1,1:3])
       
     }
     
   }
   
   # PRIORS  ----
-  #phi ~ dunif(0, 1)
-  #p ~ dunif(0, 1)
+  piPA ~ dunif(0,1)
   
-  for (t in 1:(K-1)){
+  for (t in 1:(n_occ-1)){
     for (j in 1:2){
       epsilon[1,j,t] ~ dnorm(0, tau[1])
       epsilon[2,j,t] ~ dnorm(0, tau[2])
     }}
   
   for (j in 1:2){
+    psi_mu[j] ~ dt(0,1,3)
+    beta1[j] ~ dt(0,1,3)
+    alpha1[j] ~ dt(0,1,3)
     beta2[j] ~ dt(0,1,3)
     alpha2[j] ~ dt(0,1,3)
   }
@@ -145,35 +241,55 @@ model <- function() {
   
 }
 
-# Form the list of data
-mydatax <- list(N=N,K=K,y=as.matrix(mydata+1),f=e, pod = everyone_ch_all$pod_ch, eff = eff_mat)
+# mcmc.data ----
+mcmc.data <- list(n_ind=n_ind,
+                n_occ=n_occ,
+                y=as.matrix(obs_ch_mat+1),
+                f=f, 
+                pod = pod_ch, 
+                eff = eff_mat)
 
 # Generate inits for the latent states
-x.init <- mydata
-for (i in 1:N){
-  if (e[i] == 1) next
-  if (e[i] > 1) x.init[i,1:(e[i]-1)] <- NA
+x.init <- z_data
+for (i in 1:n_ind){
+  if (f[i] == 1) next
+  if (f[i] > 1) x.init[i,1:(f[i]-1)] <- NA
 }
-x.init[x.init==0] <- 1
-z <- as.matrix(x.init)
 
+for (i in 1:n_ind){
+  for (t in 1:n_occ){
+    if (!is.na(x.init[i,t]) && !is.na(x.init[i,t-1]) && x.init[i,t] == 0){
+      print(c(i,t)) 
+      x.init[i,t] = x.init[i,t-1]
+    }  else if (!is.na(x.init[i,t]) & x.init[i,t] == 0 && !is.na(x.init[i,t-2])){
+      print(c(i,t)) 
+      x.init[i,t] = x.init[i,t-2]
+    } else if (!is.na(x.init[i,t]) & x.init[i,t] == 0 && !is.na(x.init[i,t-3])){
+      print(c(i,t)) 
+      x.init[i,t] = x.init[i,t-3]
+    } 
+  }
+}
+
+
+z <- as.matrix(x.init)
+z
 
 inits<-function(){list(z = z,
-                            #beta1 = runif(2, 0, 1),
-                            #alpha1 = runif(2, 0, 1),
-                            #beta1 = matrix(rep(runif(2*(n_occ-1), 0, 1)), ncol =n_occ-1),
-                            beta2 = runif(2, 0, 1),
-                            alpha2 = runif(2, 0, 1),
-                            #mean.p = runif(1, 0, 1),
-                            tau = runif(2, 1, 5)
+                      beta1 = rnorm(2, 0, 1),
+                      alpha1 = rnorm(2, 0, 1),
+                      beta2 = rnorm(2, 0, 1),
+                      alpha2 = rnorm(2, 0, 1),
+                      psi_mu = rnorm(2, 0, 1),
+                      tau = runif(2, 1, 5)
 )}
 
 # Specify the parameters to be monitored
-parameters <- c("p.est","phi.est","beta2","alpha2","sigma")
+parameters <- c("pPA.est","pA.est","phiPA.est","phiA.est","psiPAA","beta1","alpha1","beta2","alpha2","sigma")
 rjags::load.module("glm")
 # fit the model:
 R2OpenBUGS::write.model(model,con="multievent.txt") # write JAGS model code to file
-m1 = rjags::jags.model("multievent.txt", data = mydatax, inits = inits, n.chains = 3, n.adapt = 1000)
+m1 = rjags::jags.model("multievent.txt", data = mcmc.data, inits = inits, n.chains = 3, n.adapt = 1000)
 update(m1) # another burn in
 out1 = coda.samples(model = m1, variable.names = parameters, n.iter = 5000)
 out1_df = posterior::as_draws_df(out1)
@@ -190,6 +306,7 @@ results_me<-as.data.frame(summary(out1_df))
 # results_all<-as.data.frame(summary(results_in_all))
 # results_all
 min(results_me$ess_bulk)
+max(results_me$rhat)
 
 results_me%>%
   filter(grepl("sigma", variable))%>%
