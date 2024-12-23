@@ -6,6 +6,8 @@ library(dplyr)
 
 # data ----
 
+ID_per_day_all<-readRDS("./data/ID_per_day_all.RDS") 
+
 long_samp_ch_all<-readRDS("./data/long_samp.RDS") #skip 2007.67
 eff_it<-long_samp_ch_all%>%
   dplyr::select(-POD)%>%
@@ -14,7 +16,7 @@ eff_it<-long_samp_ch_all%>%
 eff_it[eff_it > 0]<-1
 eff_mat<-unname(eff_it)
 
-everyone_ch_age<-readRDS("./data/everyone_ageclass_ch.RDS")%>%group_by(POD)%>%slice_head(n = 40)%>%ungroup()
+everyone_ch_age<-readRDS("./data/everyone_ageclass_ch.RDS")%>%ungroup()#%>%group_by(POD)%>%slice_head(n = 40)
 everyone_ch_age$pod_ch
 obs_it<-everyone_ch_age%>%dplyr::select(-ind,-POD,-pod_ch,-NAME,-SEX,-sex_ch)%>%
   as.matrix()
@@ -35,6 +37,14 @@ n_ind <- nrow(obs_ch_mat)
 # number of capture occasions
 n_occ <- ncol(obs_ch_mat)
 
+# Compute the date of first capture for each individual:
+f <- NULL
+for (i in 1:n_ind){
+  temp <- 1:n_occ
+  f <- c(f,min(temp[obs_ch_mat[i,]>=1], na.rm = T))}
+
+f
+
 #NAs for non observed occasions
 for (i in 1:n_ind){
 for (t in 1:n_occ){
@@ -46,13 +56,6 @@ for (t in 1:n_occ){
 
 obs_ch_mat
 
-# Compute the date of first capture for each individual:
-f <- NULL
-for (i in 1:n_ind){
-  temp <- 1:n_occ
-  f <- c(f,min(temp[obs_ch_mat[i,]>=1], na.rm = T))}
-
-f
 
 ## set up z values ----
 #remove NA values from age data by replacing with inferred age values OR 0 (1 gets added later because 0 is not a latent state)
@@ -117,11 +120,11 @@ model <- function() {
   for (i in 1:n_ind){
     
     for (t in 1:(n_occ-1)){
-      logit(pPA[i,t]) <-  alpha1[pod[i]] + epsilon[2,pod[i],t]
-      logit(pA[i,t]) <-  alpha2[pod[i]] + epsilon[2,pod[i],t]
+      logit(pPA[i,t]) <-  alpha1[pod[i]] + epsilon1[1,pod[i],t]
+      logit(pA[i,t]) <-  alpha2[pod[i]] + epsilon1[2,pod[i],t]
       
-      logit(phiPA[i,t]) <- beta1[pod[i]] + epsilon[1,pod[i],t]
-      logit(phiA[i,t]) <- beta2[pod[i]] + epsilon[1,pod[i],t]
+      logit(phiPA[i,t]) <- beta1[pod[i]] + epsilon2[1,pod[i],t]
+      logit(phiA[i,t]) <- beta2[pod[i]] + epsilon2[2,pod[i],t]
       
       logit(psiPAA[i,t]) <- psi_mu[pod[i]] 
     }}
@@ -130,11 +133,11 @@ model <- function() {
     
     for (t in 1:(n_occ-1)){
     
-      logit(pPA.est[j,t]) <- alpha1[j] + epsilon[2,j,t]
-      logit(pA.est[j,t]) <- alpha2[j] + epsilon[2,j,t]
+      logit(pPA.est[j,t]) <- alpha1[j] + epsilon1[1,j,t]
+      logit(pA.est[j,t]) <- alpha2[j] + epsilon1[2,j,t]
       
-      logit(phiPA.est[j,t]) <- beta1[j] + epsilon[1,j,t]
-      logit(phiA.est[j,t]) <- beta2[j] + epsilon[1,j,t]
+      logit(phiPA.est[j,t]) <- beta1[j] + epsilon2[1,j,t]
+      logit(phiA.est[j,t]) <- beta2[j] + epsilon2[2,j,t]
       
       logit(psiPAA.est[j,t]) <- psi_mu[j] 
       
@@ -220,8 +223,10 @@ model <- function() {
   
   for (t in 1:(n_occ-1)){
     for (j in 1:2){
-      epsilon[1,j,t] ~ dnorm(0, tau[1])
-      epsilon[2,j,t] ~ dnorm(0, tau[2])
+      for (u in 1:2){
+      epsilon1[u,j,t] ~ dnorm(0, tau1[u,j])
+      epsilon2[u,j,t] ~ dnorm(0, tau2[u,j])
+      }
     }}
   
   for (j in 1:2){
@@ -232,13 +237,15 @@ model <- function() {
     alpha2[j] ~ dt(0,1,3)
   }
   
-  sigma[1] = 1/sqrt(tau[1])
-  sigma[2] = 1/sqrt(tau[2])
-  tau[1] ~ dscaled.gamma(1,3)
-  tau[2] ~ dscaled.gamma(1,3)
-  sigma2[1] <- pow(sigma[1], 2)
-  sigma2[2] <- pow(sigma[2], 2)
-  
+  for (u in 1:2){
+    for(j in 1:2){
+  sigma1[u,j] = 1/sqrt(tau1[u,j])
+  sigma2[u,j] = 1/sqrt(tau2[u,j])
+  tau1[u,j] ~ dscaled.gamma(1,3)
+  tau2[u,j] ~ dscaled.gamma(1,3)
+  sigma1_2[u,j] <- pow(sigma1[u,j], 2)
+  sigma2_2[u,j] <- pow(sigma2[u,j], 2)
+  }}
 }
 
 # mcmc.data ----
@@ -281,65 +288,81 @@ inits<-function(){list(z = z,
                       beta2 = rnorm(2, 0, 1),
                       alpha2 = rnorm(2, 0, 1),
                       psi_mu = rnorm(2, 0, 1),
-                      tau = runif(2, 1, 5)
+                      tau1 = matrix(runif(4, 1, 5), ncol = 2),
+                      tau2 = matrix(runif(4, 1, 5), ncol = 2)
 )}
 
 # Specify the parameters to be monitored
-parameters <- c("pPA.est","pA.est","phiPA.est","phiA.est","psiPAA","beta1","alpha1","beta2","alpha2","sigma")
+parameters <- c("pPA.est","pA.est","phiPA.est","phiA.est","psiPAA.est","beta1","alpha1","beta2","alpha2","sigma1","sigma2")
 rjags::load.module("glm")
 # fit the model:
 R2OpenBUGS::write.model(model,con="multievent.txt") # write JAGS model code to file
 m1 = rjags::jags.model("multievent.txt", data = mcmc.data, inits = inits, n.chains = 3, n.adapt = 1000)
 update(m1) # another burn in
-out1 = coda.samples(model = m1, variable.names = parameters, n.iter = 5000)
+out1 = coda.samples(model = m1, variable.names = parameters, n.iter = 20000)
 out1_df = posterior::as_draws_df(out1)
-results_me<-as.data.frame(summary(out1_df))
 
+saveRDS(out1_df, file = paste0("./data/multi-event_age_",Sys.Date(),".rds"))
+Sys.time()
 #bayesplot::mcmc_trace(out1)
 
-#####
-
 ## Results ----
-# date = "2024-12-19"
-# results_in_all<-readRDS(paste0("./data/survival&cap_all",date,".rds"))
+date = "2024-12-23"
+results_in_age<-readRDS(paste0("./data/multi-event_age_",date,".rds"))
 # 
-# results_all<-as.data.frame(summary(results_in_all))
+results_age<-as.data.frame(summary(results_in_age))
 # results_all
-min(results_me$ess_bulk)
-max(results_me$rhat)
+min(results_age$ess_bulk)
+max(results_age$rhat)
 
-results_me%>%
+results_age%>%
   filter(grepl("sigma", variable))%>%
   mutate(sigma2 = median^2)
 
-results_me%>%
-  filter(grepl("phi.est", variable))
+results_age%>%
+  filter(grepl("alpha", variable))
+results_age%>%
+  filter(grepl("beta", variable))
+
+phi<-results_age%>%
+  filter(grepl("phi", variable))
+
+p<-results_age%>%
+  filter(grepl("pPA.est", variable) | grepl("pA.est", variable))
+
+results_age%>%
+  filter(grepl("psiPAA", variable))%>%
+  dplyr::select(-variable)%>%
+  distinct()
 
 ## surival prob # not identifiable at last occasion
 occasions<-names(long_samp_ch_all)
 
 ID_per_day_all$year_season_code<-as.character(ID_per_day_all$year_season_code)
 
-results_phi_me<- results_me%>%
-  filter(grepl("phi.est", variable))%>%
-  mutate(calfyr_season = (rep(names(long_samp_ch_all)[2:(n_occ)], each = 2)), # skip 2006.07
-         pod = rep(rep(c("DOUBTFUL","DUSKY"), each = 1), (n_occ-1)))%>%
+results_phi_in_age<-phi%>%
+  mutate(calfyr_season = rep(rep(names(long_samp_ch_all)[2:(n_occ)], each = 2),2), # skip 2006.07
+         pod = rep(rep(c("DOUBTFUL","DUSKY"), each = 1), (n_occ-1)*2))%>%
   mutate(season = case_when(
     grepl(".33", calfyr_season) ~ "Summer",
     grepl(".67", calfyr_season) ~ "Winter",
-    TRUE ~ "Spring"
-  ))%>%
+    TRUE ~ "Spring"),
+    phi = case_when(
+      grepl("phiA",variable) == TRUE ~ "Adult",
+      grepl("phiPA",variable) == TRUE ~ "Pre-adult"
+    ))%>%
   left_join(ID_per_day_all, by = c("calfyr_season" = "year_season_code", "pod" = "POD","season"))%>%
   mutate(eff = case_when(
     IDperDay != 0 ~ "effort",
     TRUE ~ "no effort"))%>%
+  filter(eff != "no effort")%>%
   mutate(area = "All areas")
 
 library(ggplot2)
 
-ggplot(results_phi_me, aes(x = as.numeric(calfyr_season), y = median))+
-  geom_errorbar(aes(ymin = q5, ymax = q95, color = eff), size = 1, alpha = 0.8)+
-  geom_point(aes(shape = as.factor(season), color = eff), size = 3, alpha = 0.8)+
+ggplot(results_phi_in_age, aes(x = as.numeric(calfyr_season), y = median))+
+  geom_errorbar(aes(ymin = q5, ymax = q95, color = phi), size = 1, alpha = 0.8)+
+  geom_point(aes(shape = as.factor(season), color = phi), size = 3, alpha = 0.8)+
   facet_wrap(~pod)+
   theme_bw()+
   theme(legend.position = "bottom")+
@@ -348,28 +371,31 @@ ggplot(results_phi_me, aes(x = as.numeric(calfyr_season), y = median))+
   xlab(expression('Dolphin year (01Sep_{year-1}–31Aug_{year})'))+
   ylab(expression('Survival probability,' *phi))
 
-ggsave('./figures/me_phi_pod.png', dpi = 300, width = 300, height = 175, units = "mm")
+ggsave('./figures/age_phi_pod.png', dpi = 300, width = 300, height = 175, units = "mm")
 
 ## capture prob # not identifiable at first occasion
 
-results_p_me<-results_me%>%
-  filter(grepl("p.est", variable))%>%
-  mutate(calfyr_season = rep(names(long_samp_ch_all)[3:(n_occ+1)], each = 2),
-         pod = rep(rep(c("DOUBTFUL","DUSKY"), each = 1), (n_occ-1)))%>%
+results_p_in_age<-p%>%
+  mutate(calfyr_season = rep(rep(names(long_samp_ch_all)[3:(n_occ+1)], each = 2),2),
+         pod = rep(rep(c("DOUBTFUL","DUSKY"), each = 1), (n_occ-1)*2))%>%
   mutate(season = case_when(
     grepl(".33", calfyr_season) ~ "Summer",
     grepl(".67", calfyr_season) ~ "Winter",
-    TRUE ~ "Spring"
-  ))%>%
+    TRUE ~ "Spring"),
+  p = case_when(
+    grepl("pA",variable) == TRUE ~ "Adult",
+    grepl("pPA",variable) == TRUE ~ "Pre-adult"
+    ))%>%
   left_join(ID_per_day_all, by = c("calfyr_season" = "year_season_code", "pod" = "POD","season"))%>%
   mutate(eff = case_when(
     IDperDay != 0 ~ "effort",
     TRUE ~ "no effort"))%>%
+  filter(eff != "no effort")%>%
   mutate(area = "All areas")
 
-ggplot(results_p_me, aes(x = as.numeric(calfyr_season), y = median))+
-  geom_errorbar(aes(ymin = q5, ymax = q95, color = eff), size = 1, alpha = 0.8)+
-  geom_point(aes(shape = as.factor(season), color = eff),size = 3, alpha = 0.8)+
+ggplot(results_p_in_age, aes(x = as.numeric(calfyr_season), y = median))+
+  geom_errorbar(aes(ymin = q5, ymax = q95, color = p), size = 1, alpha = 0.8)+
+  geom_point(aes(shape = as.factor(season), color = p),size = 3, alpha = 0.8)+
   #geom_line(aes(linetype = pod))+
   #ylim(c(0.0,1.0))+
   facet_wrap(~pod)+
@@ -380,6 +406,6 @@ ggplot(results_p_me, aes(x = as.numeric(calfyr_season), y = median))+
   xlab(expression('Dolphin year (01Sep_{year-1}–31Aug_{year})'))+
   ylab(expression('Capture probability, p'))
 
-ggsave('./figures/me_p_pod.png', dpi = 300, width = 300, height = 175, units = "mm")
+ggsave('./figures/age_p_pod.png', dpi = 300, width = 300, height = 175, units = "mm")
 
 
