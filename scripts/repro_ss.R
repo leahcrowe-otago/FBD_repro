@@ -324,11 +324,12 @@ ch_ageclass<-function(x){
     dplyr::select(-age)%>%
     ungroup()%>%
     arrange(year_season_code)%>%
+    #filter(ageclass != "C")%>%
     mutate(ageclass_ch = case_when(
       ageclass == "C" ~ 1,
-      ageclass == "PA" ~ 2,
-      ageclass == "U" ~ 2,
-      ageclass == "A" ~ 3
+      ageclass == "PA" ~ 1,
+      ageclass == "U" ~ 1,
+      ageclass == "A" ~ 2
     ))%>%
     distinct(POD, NAME, SEX, year_season_code, ageclass_ch)%>%
     tidyr::pivot_wider(names_from = year_season_code, values_from = ageclass_ch)%>%
@@ -349,8 +350,9 @@ ch_ageclass<-function(x){
 everyone_ageclass_ch<-ch_ageclass(everyone)
 
 # scaled
-everyone_scaled<-everyone%>%ungroup%>%filter(year_season_code >= 2009.33 & year_season_code <= 2013.33)
-everyone_ageclass_ch<-ch_ageclass(everyone_scaled)%>%filter(!is.na(`2009.33`))%>%group_by(POD)%>%slice_head(n = 20)%>%ungroup()%>%filter(POD == "DOUBTFUL")
+#everyone_scaled<-everyone%>%ungroup%>%filter(year_season_code >= 2009.33 & year_season_code <= 2013.33)
+#everyone_ageclass_ch<-ch_ageclass(everyone_scaled)%>%filter(!is.na(`2009.33`))%>%
+#    group_by(POD)%>%slice_head(n = 40)%>%ungroup()%>%filter(POD == "DOUBTFUL")
 
 # Go to phi_all_ageclass*.R
 saveRDS(everyone_ageclass_ch, "./data/everyone_ageclass_ch.RDS")
