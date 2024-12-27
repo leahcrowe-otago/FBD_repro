@@ -26,6 +26,7 @@ obs_ch_mat[is.na(obs_ch_mat)]<-0
 #mydata <- obs_ch_mat
 
 pod_ch<-everyone_ch_age$pod_ch
+sex_ch<-everyone_ch_age$sex_ch
 
 #mydata <- read.table('dipper.txt')
 head(obs_ch_mat)
@@ -120,27 +121,25 @@ model <- function() {
   for (i in 1:n_ind){
     
     for (t in 1:(n_occ-1)){
-      logit(pPA[i,t]) <-  alpha1[pod[i]] + epsilon1[1,pod[i],t]
-      logit(pA[i,t]) <-  alpha2[pod[i]] + epsilon1[2,pod[i],t]
       
+      logit(pA[i,t]) <-  alpha2[pod[i]] + gamma[sex[i]] + epsilon1[2,sex[i],pod[i],t]
+      logit(phiA[i,t]) <- beta2[pod[i]] + gamma[sex[i]] + epsilon1[2,sex[i],pod[i],t]
+      
+      logit(pPA[i,t]) <-  alpha1[pod[i]] + epsilon2[1,pod[i],t]
       logit(phiPA[i,t]) <- beta1[pod[i]] + epsilon2[1,pod[i],t]
-      logit(phiA[i,t]) <- beta2[pod[i]] + epsilon2[2,pod[i],t]
-      
+
       logit(psiPAA[i,t]) <- psi_mu[pod[i]] 
     }}
   
+for (t in 1:(n_occ-1)){
   for (j in 1:2){ # pod
-    
-    for (t in 1:(n_occ-1)){
-    
-      logit(pPA.est[j,t]) <- alpha1[j] + epsilon1[1,j,t]
-      logit(pA.est[j,t]) <- alpha2[j] + epsilon1[2,j,t]
-      
-      logit(phiPA.est[j,t]) <- beta1[j] + epsilon2[1,j,t]
-      logit(phiA.est[j,t]) <- beta2[j] + epsilon2[2,j,t]
-      
+    for (k in 1:2){
+      logit(pA.est[k,j,t]) <- alpha2[j] + gamma[k] + epsilon1[1,k,j,t]
+      logit(phiA.est[k,j,t]) <- beta2[j] + gamma[k] + epsilon1[2,k,j,t]
+    }
+      logit(pPA.est[j,t]) <- alpha1[j] + epsilon2[1,j,t]
+      logit(phiPA.est[j,t]) <- beta1[j] + epsilon2[2,j,t]
       logit(psiPAA.est[j,t]) <- psi_mu[j] 
-      
     }}
   
 # PARAMETERS	----
@@ -221,13 +220,16 @@ model <- function() {
   # PRIORS  ----
   piPA ~ dunif(0,1)
   
-  for (t in 1:(n_occ-1)){
-    for (j in 1:2){
-      for (u in 1:2){
-      epsilon1[u,j,t] ~ dnorm(0, tau1[u,j])
-      epsilon2[u,j,t] ~ dnorm(0, tau2[u,j])
-      }
-    }}
+
+for (u in 1:2){
+  for (j in 1:2){
+    for (t in 1:(n_occ-1)){
+      for(k in 1:2){
+        epsilon1[u,k,j,t] ~ dnorm(0, tau1[u,j])
+        }        
+        epsilon2[u,j,t] ~ dnorm(0, tau2[u,j])
+      }}
+    }
   
   for (j in 1:2){
     psi_mu[j] ~ dt(0,1,3)
@@ -236,7 +238,11 @@ model <- function() {
     beta2[j] ~ dt(0,1,3)
     alpha2[j] ~ dt(0,1,3)
   }
-  
+   
+  for (k in 1:2){
+    gamma[k] ~ dt(0,1,3)
+  }
+    
   for (u in 1:2){
     for(j in 1:2){
   sigma1[u,j] = 1/sqrt(tau1[u,j])
@@ -254,7 +260,8 @@ mcmc.data <- list(n_ind=n_ind,
                 y=as.matrix(obs_ch_mat+1),
                 f=f, 
                 pod = pod_ch, 
-                eff = eff_mat)
+                eff = eff_mat,
+                sex = sex_ch)
 
 # Generate inits for the latent states
 x.init <- z_data
@@ -287,27 +294,30 @@ inits<-function(){list(z = z,
                       alpha1 = rnorm(2, 0, 1),
                       beta2 = rnorm(2, 0, 1),
                       alpha2 = rnorm(2, 0, 1),
+                      gamma = rnorm(2, 0, 1),
                       psi_mu = rnorm(2, 0, 1),
                       tau1 = matrix(runif(4, 1, 5), ncol = 2),
                       tau2 = matrix(runif(4, 1, 5), ncol = 2)
 )}
 
 # Specify the parameters to be monitored
-parameters <- c("pPA.est","pA.est","phiPA.est","phiA.est","psiPAA.est","beta1","alpha1","beta2","alpha2","sigma1","sigma2")
+parameters <- c("pPA.est","pA.est","phiPA.est","phiA.est","psiPAA.est","beta1","alpha1","gamma1","gamma2","beta2","alpha2","sigma1","sigma2")
 rjags::load.module("glm")
 # fit the model:
 R2OpenBUGS::write.model(model,con="multievent.txt") # write JAGS model code to file
-m1 = rjags::jags.model("multievent.txt", data = mcmc.data, inits = inits, n.chains = 3, n.adapt = 1000)
+m1 = rjags::jags.model("multievent.txt", data = mcmc.data, inits = inits, n.chains = 3, n.adapt = 5000) #5000
 update(m1) # another burn in
-out1 = coda.samples(model = m1, variable.names = parameters, n.iter = 20000)
+out1 = coda.samples(model = m1, variable.names = parameters, n.iter = 20000) #20000
 out1_df = posterior::as_draws_df(out1)
-
+Sys.time()
 saveRDS(out1_df, file = paste0("./data/multi-event_age_",Sys.Date(),".rds"))
 Sys.time()
 #bayesplot::mcmc_trace(out1)
 
 ## Results ----
-date = "2024-12-23"
+date = "2024-12-24" # before adding sex variable to adults
+date = "2024-12-26" # sex variable to adults, next try is time varying transition prob
+
 results_in_age<-readRDS(paste0("./data/multi-event_age_",date,".rds"))
 # 
 results_age<-as.data.frame(summary(results_in_age))
