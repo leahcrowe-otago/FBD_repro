@@ -309,18 +309,24 @@ Sys.time()
 
 date = "2024-12-24" # before adding sex variable to adults
 date = "2024-12-26" # sex variable to adults, next try is time varying transition prob
-date = "2024-12-28"
+date = "2024-12-28" # sex variable with time-varying psi
 
 results_in_age<-readRDS(paste0("./data/multi-event_age_",date,".rds"))
 
-bayesplot::mcmc_trace(results_in_age, pars = c("alpha2[1]","alpha2[2]","beta2[1]","beta2[2]","gamma[1]","gamma[2]"))
-#pre-adults
-bayesplot::mcmc_areas(results_in_age, pars = c("alpha1[1]","alpha1[2]","beta1[1]","beta1[2]","alpha2[1]","alpha2[2]","beta2[1]","beta2[2]"),prob = 0.8)
-#adults
-bayesplot::mcmc_areas(results_in_age, pars = c("alpha2[1]","alpha2[2]","beta2[1]","beta2[2]","gamma[1]","gamma[2]"),prob = 0.8)
-# 
+#alpha1 capture pod, alpha2 capture sex (adults only), beta1 survival pod, beta2 survival sex (adults only), gamma pod transition
+# pod = j, sex = k
 
+#traceplots
+bayesplot::mcmc_trace(results_in_age, pars = c("alpha1[1]","alpha1[2]","beta1[1]","beta1[2]","alpha2[1]","alpha2[2]","beta2[1]","beta2[2]","gamma[1]","gamma[2]"))
+#sex
+bayesplot::mcmc_areas(results_in_age, pars = c("alpha2[1]","alpha2[2]","beta2[1]","beta2[2]"),prob = 0.9)
+#pod
+bayesplot::mcmc_areas(results_in_age, pars = c("alpha1[1]","alpha1[2]","beta1[1]","beta1[2]","gamma[1]","gamma[2]"),prob = 0.9)
+# 
+bayesplot::mcmc_areas(results_in_age, pars = c("sigma2[1]","sigma2[2]","sigma2[3]"))
+  
 results_age<-as.data.frame(summary(results_in_age))
+subset_draws(results_in_age, c("alpha1","alpha2"))
 # results_all
 min(results_age$ess_bulk)
 max(results_age$rhat)
@@ -372,9 +378,11 @@ results_phi_in_age<-phi%>%
 
 library(ggplot2)
 
-ggplot(results_phi_in_age, aes(x = as.numeric(calfyr_season), y = median))+
-  geom_errorbar(aes(ymin = q5, ymax = q95, color = phi), size = 1, alpha = 0.8)+
-  geom_point(aes(shape = as.factor(season), color = phi), size = 3, alpha = 0.8)+
+ggplot()+
+  geom_point(results_phi_in_age%>%filter(phi == "Adult"), mapping = aes(x = as.numeric(calfyr_season), y = median, shape = as.factor(season), color = Sex), size = 3, alpha = 0.8)+
+  geom_point(results_phi_in_age%>%filter(phi != "Adult"), mapping = aes(x = as.numeric(calfyr_season), y = median, shape = as.factor(season)), color = "black", size = 3, alpha = 0.8)+
+  geom_errorbar(results_phi_in_age%>%filter(phi == "Adult"), mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95, color = Sex), size = 1, alpha = 0.8)+
+  geom_errorbar(results_phi_in_age%>%filter(phi != "Adult"), mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95), color = "black", size = 1, alpha = 0.8)+
   facet_wrap(~Pod)+
   theme_bw()+
   theme(legend.position = "bottom")+
@@ -385,26 +393,13 @@ ggplot(results_phi_in_age, aes(x = as.numeric(calfyr_season), y = median))+
 
 ggsave('./figures/sex_age_phi_pod.png', dpi = 300, width = 300, height = 175, units = "mm")
 
-ggplot(results_phi_in_age%>%filter(phi == "Adult"), aes(x = as.numeric(calfyr_season), y = median))+
-  geom_errorbar(aes(ymin = q5, ymax = q95, color = Sex), size = 1, alpha = 0.8)+
-  geom_point(aes(shape = as.factor(season), color = Sex), size = 3, alpha = 0.8)+
-  facet_wrap(~Pod)+
-  theme_bw()+
-  theme(legend.position = "bottom")+
-  scale_x_continuous(breaks = c(2005:2024))+
-  theme(axis.text.x=element_text(angle=90, vjust=0.5))+
-  xlab(expression('Dolphin year (01Sep_{year-1}–31Aug_{year})'))+
-  ylab(expression('Survival probability,' *phi))
-
-ggsave('./figures/sex_adult_phi_pod.png', dpi = 300, width = 300, height = 175, units = "mm")
-
 ## capture prob # not identifiable at first occasion
 
 results_p_in_age<-p%>%
-  mutate(calfyr_season = c(rep(names(long_samp_ch_all)[3:(n_occ+1)], each = 4),rep(names(long_samp_ch_all)[2:(n_occ)], each = 2)), # skip 2006.07
+  mutate(calfyr_season = c(rep(names(long_samp_ch_all)[3:(n_occ+1)], each = 4),rep(names(long_samp_ch_all)[3:(n_occ+1)], each = 2)), # skip 2006.07
          Sex = c(rep(rep(c("Female","Male"), each = 1), (n_occ-1)*2), rep(NA,(n_occ-1)*2)),
          Pod = c(rep(rep(c("DOUBTFUL","DUSKY"), each = 2), (n_occ-1)), rep(rep(c("DOUBTFUL","DUSKY"), each = 1), (n_occ-1))))%>%
-  mutate(season = case_when(
+  mutate(Season = case_when(
     grepl(".33", calfyr_season) ~ "Summer",
     grepl(".67", calfyr_season) ~ "Winter",
     TRUE ~ "Spring"),
@@ -412,18 +407,18 @@ results_p_in_age<-p%>%
     grepl("pA",variable) == TRUE ~ "Adult",
     grepl("pPA",variable) == TRUE ~ "Pre-adult"
     ))%>%
-  left_join(ID_per_day_all, by = c("calfyr_season" = "year_season_code", "Pod" = "POD","season"))%>%
+  left_join(ID_per_day_all, by = c("calfyr_season" = "year_season_code", "Pod" = "POD","Season" = "season"))%>%
   mutate(eff = case_when(
     IDperDay != 0 ~ "effort",
     TRUE ~ "no effort"))%>%
   filter(eff != "no effort")%>%
   mutate(area = "All areas")
 
-ggplot(results_p_in_age, aes(x = as.numeric(calfyr_season), y = median))+
-  geom_errorbar(aes(ymin = q5, ymax = q95, color = p), size = 1, alpha = 0.8)+
-  geom_point(aes(shape = as.factor(season), color = p),size = 3, alpha = 0.8)+
-  #geom_line(aes(linetype = pod))+
-  #ylim(c(0.0,1.0))+
+ggplot()+
+  geom_point(results_p_in_age%>%filter(p == "Adult"), mapping = aes(x = as.numeric(calfyr_season), y = median, shape = as.factor(Season), color = Sex), size = 3, alpha = 0.8)+
+  geom_point(results_p_in_age%>%filter(p != "Adult"), mapping = aes(x = as.numeric(calfyr_season), y = median, shape = as.factor(Season)), color = "black", size = 3, alpha = 0.8)+
+  geom_errorbar(results_p_in_age%>%filter(p == "Adult"), mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95, color = Sex), size = 1, alpha = 0.8)+
+  geom_errorbar(results_p_in_age%>%filter(p != "Adult"), mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95), color = "black", size = 1, alpha = 0.8)+
   facet_wrap(~Pod)+
   theme_bw()+
   scale_x_continuous(breaks = c(2005:2024))+
