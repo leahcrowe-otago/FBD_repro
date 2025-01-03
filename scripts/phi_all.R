@@ -186,12 +186,12 @@ results_phi_all<- results_all%>%
   filter(grepl("phi.est", variable))%>%
   mutate(calfyr_season = (rep(names(long_samp_ch_all)[2:(n_occ)], each = 2)), # skip 2006.07
          pod = rep(rep(c("DOUBTFUL","DUSKY"), each = 1), (n_occ-1)))%>%
-  mutate(season = case_when(
+  mutate(Season = case_when(
     grepl(".33", calfyr_season) ~ "Summer",
     grepl(".67", calfyr_season) ~ "Winter",
     TRUE ~ "Spring"
   ))%>%
-  left_join(ID_per_day_all, by = c("calfyr_season" = "year_season_code", "pod" = "POD","season"))%>%
+  left_join(ID_per_day_all, by = c("calfyr_season" = "year_season_code", "pod" = "POD","Season" = "season"))%>%
   mutate(eff = case_when(
     IDperDay != 0 ~ "effort",
     TRUE ~ "no effort"))%>%
@@ -201,7 +201,7 @@ library(ggplot2)
 
 ggplot(results_phi_all, aes(x = as.numeric(calfyr_season), y = median))+
   geom_errorbar(aes(ymin = q5, ymax = q95, color = eff), size = 1, alpha = 0.8)+
-  geom_point(aes(shape = as.factor(season), color = eff), size = 3, alpha = 0.8)+
+  geom_point(aes(shape = as.factor(Season), color = eff), size = 3, alpha = 0.8)+
   facet_wrap(~pod)+
   theme_bw()+
   theme(legend.position = "bottom")+
@@ -218,12 +218,12 @@ results_p_all<-results_all%>%
   filter(grepl("p.est", variable))%>%
   mutate(calfyr_season = rep(names(long_samp_ch_all)[3:(n_occ+1)], each = 2),
          pod = rep(rep(c("DOUBTFUL","DUSKY"), each = 1), (n_occ-1)))%>%
-  mutate(season = case_when(
+  mutate(Season = case_when(
     grepl(".33", calfyr_season) ~ "Summer",
     grepl(".67", calfyr_season) ~ "Winter",
     TRUE ~ "Spring"
   ))%>%
-  left_join(ID_per_day_all, by = c("calfyr_season" = "year_season_code", "pod" = "POD","season"))%>%
+  left_join(ID_per_day_all, by = c("calfyr_season" = "year_season_code", "pod" = "POD","Season" = "season"))%>%
   mutate(eff = case_when(
     IDperDay != 0 ~ "effort",
     TRUE ~ "no effort"))%>%
@@ -231,7 +231,7 @@ results_p_all<-results_all%>%
 
 ggplot(results_p_all, aes(x = as.numeric(calfyr_season), y = median))+
   geom_errorbar(aes(ymin = q5, ymax = q95, color = eff), size = 1, alpha = 0.8)+
-  geom_point(aes(shape = as.factor(season), color = eff),size = 3, alpha = 0.8)+
+  geom_point(aes(shape = as.factor(Season), color = eff),size = 3, alpha = 0.8)+
   #geom_line(aes(linetype = pod))+
   ylim(c(0.0,1.0))+
   facet_wrap(~pod)+
@@ -244,3 +244,5 @@ ggplot(results_p_all, aes(x = as.numeric(calfyr_season), y = median))+
 
 ggsave('./figures/all_p_pod.png', dpi = 300, width = 300, height = 175, units = "mm")
 
+ggplot(results_p_all, aes(x = as.factor(Season), y = median))+
+  geom_boxplot()
