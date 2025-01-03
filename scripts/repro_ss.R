@@ -78,9 +78,6 @@ for (j in 1:length(calves_mom_list)){
 
     #searches for mother/offspring in same photo
       wean<-photo_ID_season_code%>%
-        # mutate(SEASON = case_when(
-        #   SEASON == "SPRING" | SEASON == "SUMMER" ~ "SPRING/SUMMER",
-        #   SEASON == "AUTUMN" | SEASON == "WINTER" ~ "AUTUMN/WINTER"))%>%
         filter(ID_NAME == x$calf[i] | ID_NAME == x$MOM[i])%>%
         distinct(SURVEY_AREA, TRIP, DATETIME, ID_NAME, PHOTOGRAPHER, CALFYEAR, season_code)%>%
         group_by(TRIP, DATETIME, PHOTOGRAPHER)%>%
@@ -195,8 +192,8 @@ PA_timeline<-ggplot()+
            alpha = .1,fill = "orange")+
   scale_y_continuous(breaks = c(2005:2023))+
   theme_bw()+
-  xlab("")+
-  ylab("Dolphin year (01Sep_{y-1}–31Aug_{y})")+
+  xlab("Date")+
+  ylab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
   theme(panel.grid.minor.x = element_blank(),
         panel.grid.minor.y = element_blank(),
         legend.position = "bottom")+
@@ -313,9 +310,9 @@ summary(everyone_ch)
 summary(everyone_SA_ch)
 
 # Go to phi_all*.R
-saveRDS(everyone_ch, "./data/everyone_everywhere.RDS")
+#saveRDS(everyone_ch, "./data/everyone_everywhere.RDS")
 # Go to phi_SA*.R
-saveRDS(everyone_SA_ch, "./data/everyone_SA.RDS")
+#saveRDS(everyone_SA_ch, "./data/everyone_SA.RDS")
 
 ### ageclass
 
@@ -355,7 +352,7 @@ everyone_ageclass_ch<-ch_ageclass(everyone)
 #    group_by(POD)%>%slice_head(n = 40)%>%ungroup()%>%filter(POD == "DOUBTFUL")
 
 # Go to phi_all_ageclass*.R
-saveRDS(everyone_ageclass_ch, "./data/everyone_ageclass_ch.RDS")
+#saveRDS(everyone_ageclass_ch, "./data/everyone_ageclass_ch.RDS")
 
 ### 
 ## Effort ----
@@ -414,18 +411,10 @@ IDperday_fxn<-function(x,y){
 }
 
 ID_per_day_all<-IDperday_fxn(everyone,photo_days_all)%>%mutate(area = "All areas")
-saveRDS(ID_per_day_all, "./data/ID_per_day_all.RDS") 
+#saveRDS(ID_per_day_all, "./data/ID_per_day_all.RDS") 
 
 ID_per_day_SA<-IDperday_fxn(everyone_SA,photo_days_SA)%>%mutate(area = "Complexes only")
-saveRDS(ID_per_day_SA, "./data/ID_per_day_SA.RDS") 
-
-##num individuals with effort days, not finished
-ggplot()+
-  geom_col(everyone%>%distinct(POD, NAME, year_season_code)%>%group_by(POD, year_season_code)%>%tally(), mapping = aes(x = year_season_code, y = n))+
-  geom_point(photo_days_all, mapping = aes(x=year_season_code, y = n*10), color = "red")+
-  facet_wrap(~POD)
-
-ggsave('./figures/eff_days_photos.png', dpi = 300, width = 300, height = 175, units = "mm")
+#saveRDS(ID_per_day_SA, "./data/ID_per_day_SA.RDS") 
 
 ###
 
@@ -445,22 +434,25 @@ ID_eff_plot<-ggplot(ID_per_day_together)+
 
 ID_eff_plot
 
-ggsave('./figures/ID_eff_plot.png', ID_eff_plot, dpi = 320, width = 200, height = 100, units = 'mm')
+ggsave('./figures/ID_eff_plot.png', ID_eff_plot, dpi = 300, width = 200, height = 100, units = 'mm')
 
+#individuals identified per sampling period
 count_ID_samp<-ggplot(ID_per_day_together)+
+  geom_path(aes(x = year_season_code, y = n.y, color = area), alpha = 0.4)+
   geom_point(aes(x = year_season_code, y = n.y, shape = as.factor(season), color = area))+
-  geom_path(aes(x = year_season_code, y = n.y, color = area))+
   facet_wrap(~POD)+
   theme_bw()+
-  xlab("Sampling period")+
+  xlab("Year")+
   ylab("# individuals identified")+
   scale_x_continuous(breaks = c(2005:2024))+
-  theme(axis.text.x=element_text(angle=90, vjust=0.5))+
+  theme(axis.text.x=element_text(angle=90, vjust=0.5),
+        legend.title = element_blank(),
+        legend.position = "bottom")+
   scale_color_manual(values = c("All areas" = "red", "Complexes only" = "black"))
 
 count_ID_samp
 
-ggsave('./figures/count_ID_samp.png', count_ID_samp, dpi = 320, width = 200, height = 100, units = 'mm')
+ggsave('./figures/count_ID_samp.png', count_ID_samp, dpi = 300, width = 200, height = 100, units = 'mm')
 
 ##
 
