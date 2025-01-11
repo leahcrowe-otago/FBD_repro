@@ -330,7 +330,7 @@ Sys.time()
 # F = 1, M = 2
 #Doubtful = 1, Dusky = 2
 
-date = "2025-01-09" # pod dependent, time varying random effects for p, phi, and psi
+date = "2025-01-11" # pod dependent, time varying random effects for p, phi, and psi
 
 results_in_age<-readRDS(paste0("./data/multi-event_ageclass_",date,".rds"))
 
@@ -417,11 +417,11 @@ prop<-results_z_age%>%
   group_by(Pod, year_season_code, age)%>%
   mutate(prop = n/sum)
 
-prop%>%filter(Pod == "DOUBTFUL")%>%
+prop%>%filter(Pod == "DOUBTFUL" & year_season_code >= 2013)%>%
   group_by(age)%>%
   dplyr::summarise(median = median(prop), min = min(prop), max = max(prop))
 
-prop%>%filter(Pod == "DUSKY" & year_season_code >= 2016)%>%
+prop%>%filter(Pod == "DUSKY" & year_season_code >= 2015.67)%>%
   group_by(age)%>%
   dplyr::summarise(median = median(prop), min = min(prop), max = max(prop))
 
