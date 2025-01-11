@@ -66,6 +66,7 @@ photo_ID_season_code<-photo_analysis_calfyear_sql%>%
 for (j in 1:length(calves_mom_list)){
 
   x = as.data.frame(calves_mom_list[[j]])
+  #x = as.data.frame(calves_mom_list$BOWTIE)
   print(x)
   print(nrow(x))
   print("skip")
@@ -75,7 +76,7 @@ for (j in 1:length(calves_mom_list)){
   wean_season_list = vector("list", length = n)
   
   for (i in 1:nrow(x)){
-
+     # i = 1
     #searches for mother/offspring in same photo
       wean<-photo_ID_season_code%>%
         filter(ID_NAME == x$calf[i] | ID_NAME == x$MOM[i])%>%
@@ -86,13 +87,16 @@ for (j in 1:length(calves_mom_list)){
         ungroup()
       
       wean_seconds<-wean%>%
+        arrange(DATETIME)%>%
         filter(n_time == 1)%>%
         mutate(lag_name = lag(ID_NAME),
                lead_name = lead(ID_NAME))%>%
         filter((ID_NAME != lag_name) | (ID_NAME != lead_name))%>%
+        group_by(PHOTOGRAPHER)%>%
         mutate(lag_time = ymd_hms(DATETIME) - lag(ymd_hms(DATETIME)),
                lead_time = lead(ymd_hms(DATETIME)) - ymd_hms(DATETIME))%>%
-        filter(lag_time <= seconds(60) | lead_time <= seconds(60))%>%
+        filter(lag_time <= seconds(3) | lead_time <= seconds(3))%>%
+        ungroup()%>%
         distinct(CALFYEAR, season_code)
       
       wean_season<-wean%>%
@@ -109,6 +113,13 @@ for (j in 1:length(calves_mom_list)){
       filter(CALFYEAR < x$BIRTH_YEAR[i+1])
     }
 
+      wean_season<-wean_season%>%mutate(year_season = CALFYEAR + season_code)%>%arrange(year_season)%>%mutate(yr_diff = lead(year_season) - year_season)
+      wean_season[is.na(wean_season)]<-0
+      
+      if (any(wean_season$yr_diff > 1)){
+        print("yes")
+      wean_season<-wean_season[seq(which.max(wean_season$yr_diff > 1)),]
+      }
       #wean_season$i <- i  # maybe you want to keep track of which iteration produced it?
       wean_season_list[[i]] <- wean_season  
       mom_wean_list[[j]]<-data.table::rbindlist(wean_season_list)
@@ -158,8 +169,22 @@ ggplot(all_wean_females%>%filter(CALFYEAR > 2004))+
 
 obs_female_wean<-all_wean_females%>%
   filter(CALFYEAR > 2004 & CALFYEAR < 2024)%>%
-  mutate(FIRST_CALF = as.numeric(FIRST_CALF))
+  mutate(FIRST_CALF = as.numeric(FIRST_CALF),
+         year_season_code = CALFYEAR + season_code)%>%
+  filter(!(calf == "SEAL" & year_season_code > 2014.00))
 head(obs_female_wean)
+
+mean_wean<-obs_female_wean%>%
+  group_by(NAME, calf)%>%
+  dplyr::summarise(min = min(year_season_code), max = max(year_season_code), .groups = "drop")%>%
+  mutate(wean_time = max - min)%>%
+  arrange(wean_time)%>%  
+  #filter(!(max >= 2023.67 & wean_time < 1.5))%>%
+  filter(wean_time > 1)%>%
+  mutate(mean = mean(wean_time))
+
+mean_wean%>%filter(wean_time < 2.67)
+hist(mean_wean$wean_time)
 
 ## photo timeline ----
 yday("2017-05-01")
@@ -322,12 +347,6 @@ ch_ageclass<-function(x){
     ungroup()%>%
     arrange(year_season_code)%>%
     #filter(ageclass != "C")%>%
-    mutate(ageclass_ch = case_when(
-      ageclass == "C" ~ 1,
-      ageclass == "PA" ~ 1,
-      ageclass == "U" ~ 1,
-      ageclass == "A" ~ 2
-    ))%>%
     distinct(POD, NAME, SEX, year_season_code, ageclass_ch)%>%
     tidyr::pivot_wider(names_from = year_season_code, values_from = ageclass_ch)%>%
     arrange(POD, SEX)%>%
@@ -344,15 +363,31 @@ ch_ageclass<-function(x){
     ))
 }
 
-everyone_ageclass_ch<-ch_ageclass(everyone)
+everyone_A_PA_C_ch<-ch_ageclass(everyone%>%
+                                    mutate(ageclass_ch = case_when(
+                                        ageclass == "C" ~ 1,  
+                                        ageclass == "PA" ~ 2,  
+                                        ageclass == "U" ~ 2,  
+                                        ageclass == "A" ~ 3)))
+
+everyone_A_PA_ch<-ch_ageclass(everyone%>%
+                                  mutate(ageclass_ch = case_when(
+                                    ageclass == "C" ~ 1,  
+                                    ageclass == "PA" ~ 1,  
+                                    ageclass == "U" ~ 1,  
+                                    ageclass == "A" ~ 2)))
+
+
+
 
 # scaled
 #everyone_scaled<-everyone%>%ungroup%>%filter(year_season_code >= 2009.33 & year_season_code <= 2013.33)
 #everyone_ageclass_ch<-ch_ageclass(everyone_scaled)%>%filter(!is.na(`2009.33`))%>%
 #    group_by(POD)%>%slice_head(n = 40)%>%ungroup()%>%filter(POD == "DOUBTFUL")
 
-# Go to phi_all_ageclass*.R
-#saveRDS(everyone_ageclass_ch, "./data/everyone_ageclass_ch.RDS")
+# Go to multi-event_ageclass.R
+saveRDS(everyone_A_PA_ch, "./data/everyone_A_PA_ch.RDS")
+saveRDS(everyone_A_PA_C_ch, "./data/everyone_A_PA_C_ch.RDS")
 
 ### 
 ## Effort ----
