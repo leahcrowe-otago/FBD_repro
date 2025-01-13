@@ -67,6 +67,7 @@ f
 
 ## model ----
 # model built in phi_model.R
+source('~/git-otago/FBD_repro/scripts/phi_model.R', local = TRUE)$value
 
 ## data ----
 mcmc.data<-list(
@@ -89,7 +90,7 @@ out1_df = posterior::as_draws_df(out1)
 saveRDS(out1_df, file = paste0("./data/survival&cap_all",Sys.Date(),".rds"))
 
 # Load results ----
-date = "2024-12-19"
+date = "2025-01-12"
 results_in_all<-readRDS(paste0("./data/survival&cap_all",date,".rds"))
 
 results_all<-as.data.frame(summary(results_in_all))
@@ -136,7 +137,7 @@ ggplot(results_phi_all, aes(x = as.numeric(calfyr_season), y = median))+
   xlab(expression('Dolphin year (01Sep_{year-1}–31Aug_{year})'))+
   ylab(expression('Survival probability,' *phi))
 
-ggsave('./figures/all_phi_pod.png', dpi = 300, width = 300, height = 175, units = "mm")
+ggsave(paste0('./figures/all_phi_pod_',date,'.png'), dpi = 300, width = 300, height = 175, units = "mm")
 
 ## capture prob # not identifiable at first occasion
 
@@ -168,4 +169,29 @@ ggplot(results_p_all, aes(x = as.numeric(calfyr_season), y = median))+
   xlab(expression('Dolphin year (01Sep_{year-1}–31Aug_{year})'))+
   ylab(expression('Capture probability, p'))
 
-ggsave('./figures/all_p_pod.png', dpi = 300, width = 300, height = 175, units = "mm")
+ggsave(paste0('./figures/all_p_pod',date,'.png'), dpi = 300, width = 300, height = 175, units = "mm")
+
+###
+library(ggridges)
+ggplot(results_p_all%>%filter(eff == "effort"), mapping = aes(fill = as.factor(Season), y = 1, x = median))+
+  geom_density_ridges(alpha = 0.5)+
+  facet_wrap(~pod)+
+  theme_bw()
+
+ggplot(results_p_all, aes(x = as.factor(Season), y = median))+
+  geom_violin()+
+  geom_jitter(aes(color = Season))+
+  facet_wrap(~pod)+
+  theme_bw()
+
+ggplot(results_p_all%>%filter(eff != "no effort"), aes(x = as.numeric(calfyr_season), y = median))+
+  geom_errorbar(aes(ymin = q5, ymax = q95, color = pod), size = 1, alpha = 0.8)+
+  geom_point(aes(shape = Season, color = pod),size = 3, alpha = 0.8)+
+  #geom_path(aes(color = pod),alpha = 0.8)+
+  facet_wrap(~Season)+
+  theme_bw()+
+  scale_x_continuous(breaks = c(2005:2024))+
+  theme(axis.text.x=element_text(angle=90, vjust=0.5))+
+  theme(legend.position = "bottom")+
+  xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
+  ylab(expression('Capture probability, p'))
