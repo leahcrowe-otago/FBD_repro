@@ -6,16 +6,16 @@ model<-function(){
   for (i in 1:n_ind){
     for (t in 1:(n_occ-1)){
       
-      logit(p[i,t]) <-  alpha[pod[i]] + epsilon[2,pod[i],t]
-      logit(phi[i,t]) <- beta[pod[i]] + epsilon[1,pod[i],t]
+      logit(p[i,t]) <-  alpha[pod[i]] + epsilon[1,pod[i],t]
+      logit(phi[i,t]) <- beta[pod[i]] + epsilon[2,pod[i],t]
       
     }
   }
   
   for (t in 1:(n_occ-1)){
     for (j in 1:2){ # pod
-      logit(p.est[j,t]) <- alpha[j] + epsilon[2,j,t]    
-      logit(phi.est[j,t]) <- beta[j] + epsilon[1,j,t]
+      logit(p.est[j,t]) <- alpha[j] + epsilon[1,j,t]    
+      logit(phi.est[j,t]) <- beta[j] + epsilon[2,j,t]
       
     }}
   
@@ -48,6 +48,7 @@ model<-function(){
       # state process
       z[i,t] ~ dbern(phi[i,t-1] * z[i,t-1])
       # observation process
+      #p is t-1 because there are n_occ-1 occasions
       y[i,t] ~ dbern(p[i,t-1] * eff[pod[i],t] * z[i,t])
     }
   }
@@ -55,7 +56,7 @@ model<-function(){
 } 
 
 ## global params ----
-mcmc.params<-c("p.est","phi.est","beta","alpha","sigma")
+mcmc.params<-c("p.est","phi.est","beta","alpha","sigma","epsilon")
 
 ## global inits ----
 z.inits <- function(ch){
@@ -71,8 +72,7 @@ z.inits <- function(ch){
 
 mcmc.inits<-function(){list(z = z.inits(obs_ch_mat),
                             beta = runif(2, 0, 1),
-                            alpha1 = runif(2, 0, 1),
-                            alpha2 = rnorm(3, 0, 1),
+                            alpha = runif(2, 0, 1),
                             tau = runif(2, 1, 5)
 )}
 
