@@ -180,8 +180,8 @@ for (i in (n_doubtful+1):n_ind){
 # PARAMETERS	----
   # probabilities for each initial state
   ps.init[1] <- piC # prob initial state C
-  ps.init[2] <- piPA # prob. of being in initial state alive pre-adult
-  ps.init[3] <- 1 - piC - piPA # probs of bring initial state alive adult 
+  ps.init[2] <- (1 - piC)/2#piPA # prob. of being in initial state alive pre-adult
+  ps.init[3] <- (1 - piC)/2#1 - piC - piPA # probs of being initial state alive adult 
   ps.init[4] <- 0 # prob. of being in initial state dead
   
   for (i in 1:n_ind){
@@ -279,7 +279,7 @@ for (i in (n_doubtful+1):n_ind){
   
   # PRIORS  ----
   piC ~ dunif(0,1)
-  piPA ~ dunif(0,1)
+  #piPA ~ dbeta(1,1)
 
   for (j in 1:2){
     for (t in 1:(n_occ-1)){
@@ -317,11 +317,13 @@ mcmc.data <- list(n_ind=n_ind,
                 eff = eff_mat)
 
 # Generate inits for the latent states
-x.init <- z_data
+
 for (i in 1:n_ind){
   if (f[i] == 1) next
-  if (f[i] > 1) x.init[i,1:(f[i]-1)] <- NA
+  if (f[i] > 1) z_data[i,1:(f[i]-1)] <- NA
 }
+
+x.init <- z_data
 
 for (i in 1:n_ind){
   for (t in 1:n_occ){
@@ -339,19 +341,9 @@ for (i in 1:n_ind){
 }
 
 z <- as.matrix(x.init)
-
-z.i<-NULL
-for (i in 1:n_ind){
- z.i[i]<- z[i,f[i]]
-}
-
-obs.i<-NULL
-for (i in 1:n_ind){
-  obs.i<-(obs_ch_mat+1)[i,f[i]]
-}
-
-data.frame(z.i = z.i,
-              obs.i = obs.i)
+z[1,1]
+(obs_ch_mat+1)[1,1]
+###
 
 inits<-function(){list(z = z,
                       beta1 = rnorm(2, 0, 1),
@@ -370,11 +362,11 @@ rjags::load.module("glm")
 # fit the model:
 R2OpenBUGS::write.model(model,con="multievent_ageclass_calf.txt") # write JAGS model code to file
 Sys.time()
-m1 = rjags::jags.model("multievent_ageclass_calf.txt", data = mcmc.data, inits = inits, n.chains = 1, n.adapt = 1000) #5000
+m1 = rjags::jags.model("multievent_ageclass_calf.txt", data = mcmc.data, inits = inits, n.chains = 3, n.adapt = 5000) #5000
 update(m1) # another burn in
 
 #### Specify the parameters to be monitored ----
-parameters <- c("pPA.est","pA.est","phiPA.est","phiA.est","psiPAA.est","alpha1","alpha2","beta1","beta2","gamma","sigma2",
+parameters <- c("pPA.est","pA.est","phiPA.est","phiA.est","psiPAA.est","alpha1","alpha2","beta1","beta2","gamma","sigma2","piC",
                 "Doubtful_A","Dusky_A","Doubtful_PA","Dusky_PA")
                 #"N_Doubtful_A","N_Dusky_A","N_Doubtful_PA","N_Dusky_PA")
 
