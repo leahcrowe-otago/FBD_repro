@@ -395,8 +395,10 @@ observed%>%
   group_by(POD, year_season_code)%>%
   mutate(total = sum(n))%>%
   group_by(POD)%>%
+  #filter(total > 50)%>% #doubtful
+  #filter(total > 100)%>% #dusky
   mutate(min = min(total), max = max(total), median = median(total))%>%
-  distinct(POD, min, max, median)
+  distinct(POD, min, median, max)
 
 library(ggplot2)
 
@@ -580,7 +582,7 @@ results_psi_in_age<-psi%>%
   filter(eff != "no effort")%>%
   mutate(area = "All areas")
 
-ggplot(results_psi_in_age, aes(x = as.numeric(calfyr_season), y = median))+
+psi_plot<-ggplot(results_psi_in_age, aes(x = as.numeric(calfyr_season), y = median))+
   geom_errorbar(aes(ymin = q5, ymax = q95), size = 1, alpha = 0.8)+
   geom_point(aes(shape = Season),size = 3, alpha = 0.8)+
   #geom_line(aes(linetype = pod))+
@@ -592,3 +594,11 @@ ggplot(results_psi_in_age, aes(x = as.numeric(calfyr_season), y = median))+
   theme(legend.position = "bottom")+
   xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
   ylab(expression('Transition probability, ' *psi))
+
+psi_plot$layers<-c(
+  geom_rect(data = data.frame(Pod = "DOUBTFUL"), aes(xmin = 2005, xmax = 2013, ymin = 0, ymax = 0.6), fill="purple", alpha = 0.4, inherit.aes = FALSE),
+  geom_rect(data = data.frame(Pod = "DUSKY"), aes(xmin = 2007, xmax = 2015.67, ymin = 0, ymax = 0.6), fill="purple", alpha = 0.4, inherit.aes = FALSE),
+  psi_plot$layers)
+
+psi_plot
+ggsave(paste0('./figures/age_psi_pod_',date,'.png'), dpi = 300, width = 300, height = 175, units = "mm")
