@@ -489,6 +489,8 @@ count_ID_samp
 
 ggsave('./figures/count_ID_samp.png', count_ID_samp, dpi = 300, width = 200, height = 100, units = 'mm')
 
+
+ggpubr::ggarrange(PA_timeline, count_ID_samp, ncol = 1)
 ##
 
 long_samp<-ID_per_day_all%>%
