@@ -67,6 +67,7 @@ f
 
 # model ----
 # model built in phi_model.R
+source('~/git-otago/FBD_repro/scripts/phi_model.R', local = TRUE)$value
 
 ## data ----
 mcmc.data<-list(
@@ -89,7 +90,7 @@ out1_df = posterior::as_draws_df(out1)
 saveRDS(out1_df, file = paste0("./data/survival&cap_SA",Sys.Date(),".rds"))
 
 # Load results ----
-date = "2024-12-19"
+date = "2025-01-12"
 results_in_SA<-readRDS(paste0("./data/survival&cap_SA",date,".rds"))
 
 #everyone_ch_SA<-readRDS("./data/everyone_SA.RDS")
@@ -99,6 +100,7 @@ ID_per_day_SA<-readRDS("./data/ID_per_day_SA.RDS")
 results_SA<-as.data.frame(summary(results_in_SA))
 results_SA
 min(results_SA$ess_bulk)
+max(results_SA$rhat)
 
 results_SA%>%
   filter(grepl("sigma", variable))%>%
@@ -110,6 +112,9 @@ results_SA%>%
 
 results_SA%>%
   filter(grepl("phi.est", variable))
+
+results_SA%>%
+  filter(grepl("epsilon", variable))
 
 ## surival prob # not identifiable at last occasion
 occasions_SA<-names(long_samp_ch_SA)
@@ -130,6 +135,8 @@ results_phi_SA<-results_SA%>%
     IDperDay != 0 ~ "effort",
     TRUE ~ "no effort"))%>%
   mutate(area = "Complexes only")
+
+summary(results_phi_SA)
   
 library(ggplot2)
 
@@ -144,7 +151,7 @@ ggplot(results_phi_SA, aes(x = as.numeric(calfyr_season), y = median))+
   xlab(expression('Dolphin year (01Sep_{year-1}–31Aug_{year})'))+
   ylab(expression('Survival probability,' *phi))
 
-ggsave('./figures/SA_phi_pod.png', dpi = 300, width = 300, height = 175, units = "mm")
+ggsave(paste0('./figures/SA_phi_pod_',date,'.png'), dpi = 300, width = 300, height = 175, units = "mm")
 
 ## capture prob # not identifiable at first occasion
 
@@ -176,7 +183,7 @@ ggplot(results_p_SA, aes(x = as.numeric(calfyr_season), y = median))+
   xlab(expression('Dolphin year (01Sep_{year-1}–31Aug_{year})'))+
   ylab(expression('Capture probability, p'))
 
-ggsave('./figures/SA_p_pod.png', dpi = 300, width = 300, height = 175, units = "mm")
+ggsave(paste0('./figures/SA_p_pod_',date,'.png'), dpi = 300, width = 300, height = 175, units = "mm")
 
 library(ggridges)
 ggplot(results_p_SA%>%filter(eff == "effort"), mapping = aes(fill = as.factor(Season), y = 1, x = median))+
@@ -185,7 +192,8 @@ ggplot(results_p_SA%>%filter(eff == "effort"), mapping = aes(fill = as.factor(Se
   theme_bw()
 
 ggplot(results_p_SA, aes(x = as.factor(Season), y = median))+
-  geom_boxplot()+
+  geom_violin()+
+  geom_jitter(aes(color = Season))+
   facet_wrap(~pod)+
   theme_bw()
 
@@ -200,3 +208,36 @@ ggplot(results_p_SA%>%filter(eff != "no effort"), aes(x = as.numeric(calfyr_seas
   theme(legend.position = "bottom")+
   xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
   ylab(expression('Capture probability, p'))
+
+## epsilon
+
+results_ep_SA<-results_SA%>%
+  filter(grepl("epsilon", variable))%>%
+  mutate(parameter = rep(rep(c("p","phi")), (n_occ-1)*2),
+         pod = rep(rep(c("DOUBTFUL","DUSKY"), each = 2), (n_occ-1)))
+
+results_ep_SA_p<-results_ep_SA%>%
+  filter(parameter == "p")%>%
+  mutate(calfyr_season = (rep(names(long_samp_ch_SA)[3:(n_occ+1)], each = 2)), # skip 2006.07%>%
+  Season = case_when(
+    grepl(".33", calfyr_season) ~ "Summer",
+    grepl(".67", calfyr_season) ~ "Winter",
+    TRUE ~ "Spring"
+  ))%>%
+  left_join(ID_per_day_SA, by = c("calfyr_season" = "year_season_code", "pod" = "POD","Season" = "season"))%>%
+  mutate(eff = case_when(
+    IDperDay != 0 ~ "effort",
+    TRUE ~ "no effort"))%>%
+  mutate(area = "Complexes only")
+
+ggplot(results_ep_SA_p%>%filter(eff != "no effort"), aes(x = as.numeric(calfyr_season), y = median))+
+  geom_errorbar(aes(ymin = q5, ymax = q95, color = pod), size = 1, alpha = 0.8)+
+  geom_point(aes(shape = Season, color = pod),size = 3, alpha = 0.8)+
+  #geom_path(aes(color = pod),alpha = 0.8)+
+  facet_wrap(~Season)+
+  theme_bw()+
+  scale_x_continuous(breaks = c(2005:2024))+
+  theme(axis.text.x=element_text(angle=90, vjust=0.5))+
+  theme(legend.position = "bottom")+
+  xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
+  ylab(expression('Random effect on p'))
