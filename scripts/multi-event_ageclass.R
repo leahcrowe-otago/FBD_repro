@@ -134,26 +134,17 @@ for (t in 1:(n_occ-1)){
       logit(psiPAA.est[j,t]) <- gamma[j] + epsilon_psi[j,t]
   }}
   
-# for (i in 1:n_ind){
+# for (i in 1:n_doubtful){
 #   for (t in (f[i]+1):n_occ){
+#   Doubtful_PA[i,t]<-equals(z[i,t],1) #alive pre-adult matrix
+#   Doubtful_A[i,t]<-equals(z[i,t],2)
+#   }}
 # 
-#     a_PA[pod[i],i,t-1] <- equals(pod[i],z[i,t],1) #alive pre-adult matrix
-#     a_A[pod[i],i,t-1] <- equals(pod[i],z[i,t],2) #alive adult matrix
-#     
-#     }
-  # }
-
-for (i in 1:n_doubtful){
-  for (t in (f[i]+1):n_occ){
-  Doubtful_PA[i,t]<-equals(z[i,t],1) #alive pre-adult matrix
-  Doubtful_A[i,t]<-equals(z[i,t],2)
-  }}
-
-for (i in (n_doubtful+1):n_ind){
-  for (t in (f[i]+1):n_occ){
-  Dusky_PA[i,t]<-equals(z[i,t],1)
-  Dusky_A[i,t]<-equals(z[i,t],2)
-    }}
+# for (i in (n_doubtful+1):n_ind){
+#   for (t in (f[i]+1):n_occ){
+#   Dusky_PA[i,t]<-equals(z[i,t],1)
+#   Dusky_A[i,t]<-equals(z[i,t],2)
+#     }}
   
 # for (t in 1:n_occ-1){
 #   N_Doubtful_PA[t] <- sum(Doubtful_PA[,t])
@@ -266,7 +257,7 @@ for (i in (n_doubtful+1):n_ind){
 # mcmc.data ----
 mcmc.data <- list(n_ind=n_ind,
                 n_occ=n_occ,
-                n_doubtful = n_doubtful,
+                #n_doubtful = n_doubtful,
                 y=as.matrix(obs_ch_mat+1),
                 f=f, 
                 pod = pod_ch, 
@@ -315,8 +306,8 @@ m1 = rjags::jags.model("multi-event_2ageclass.txt", data = mcmc.data, inits = in
 update(m1) # another burn in
 
 #### Specify the parameters to be monitored ----
-parameters <- c("pPA.est","pA.est","phiPA.est","phiA.est","psiPAA.est","alpha1","alpha2","beta1","beta2","gamma","sigma2",
-                "Doubtful_A","Dusky_A","Doubtful_PA","Dusky_PA")
+parameters <- c("pPA.est","pA.est","phiPA.est","phiA.est","psiPAA.est","alpha1","alpha2","beta1","beta2","gamma","sigma2","z")
+                #"Doubtful_A","Dusky_A","Doubtful_PA","Dusky_PA")
                 #"N_Doubtful_A","N_Dusky_A","N_Doubtful_PA","N_Dusky_PA")
 
 out1 = coda.samples(model = m1, variable.names = parameters, n.iter = 25000) #20000
@@ -331,14 +322,15 @@ Sys.time()
 #Doubtful = 1, Dusky = 2
 
 date = "2025-01-11" # pod dependent, time varying random effects for p, phi, and psi
-
+date = "2025-01-18" # pod dependent, two alive states
 results_in_age<-readRDS(paste0("./data/multi-event_ageclass_",date,".rds"))
 
 library(posterior)
 #subset because z params are for every individual and occasion
 #this takes ### to run
 Sys.time()
-z_est<-subset_draws(results_in_age, c("Doubtful_A","Dusky_A","Doubtful_PA","Dusky_PA"))
+#z_est<-subset_draws(results_in_age, c("Doubtful_A","Dusky_A","Doubtful_PA","Dusky_PA"))
+z_est<-subset_draws(results_in_age, c("z"))
 results_z<-as.data.frame(summary(z_est))
 Sys.time()
 
@@ -346,36 +338,49 @@ saveRDS(results_z, file = paste0("./data/multi-event_ageclass_z_results",date,".
 
 results_z<-readRDS(paste0("./data/multi-event_ageclass_z_results",date,".rds"))
 
+results_z_sum<-results_z%>%
+  mutate(
+    i = as.numeric(stringr::str_extract(variable,
+                                        pattern = "(?<=\\[).*(?=\\,)")),
+    t = as.numeric(stringr::str_extract(variable,
+                                             pattern = "(?<=\\,).*(?=\\])")))%>%
+  dplyr::select(i,t,median)%>%
+  mutate(pod = case_when(
+    i > n_doubtful ~"DUSKY",
+    TRUE ~ "DOUBTFUL"
+  ))%>%
+  group_by(pod,t,median)%>%
+  tally()
+
 sampling_periods_long<-ID_per_day_all%>%
   filter(IDperDay > 0)%>%
   distinct(year_season_code)%>%
   arrange(year_season_code)%>%
-  mutate(occasion = 2:(n()+1))
+  mutate(occasion = 1:(n()))
 
-results_z_age<-results_z%>%
+results_states<-results_z_sum%>%
+  left_join(sampling_periods_long, by = c("t" = "occasion"))%>%
   mutate(age = case_when(
-    grepl("_PA", variable) ~ "Pre-adult",
-    grepl("_A", variable) ~ "Adult"
-  ),
-  occasion = as.numeric(stringr::str_extract(variable,
-                                  pattern = "(?<=\\,).*(?=\\])")),
-  Pod = case_when(
-    grepl("Doubtful", variable) ~ "DOUBTFUL",
-    grepl("Dusky", variable) ~ "DUSKY"
-  ))%>%
-  left_join(sampling_periods_long, by = "occasion")%>%
-  group_by(Pod, age, year_season_code)%>%
-  mutate(n = sum(median))%>%
-  distinct(Pod, age, year_season_code, n)%>%
-  group_by(Pod, year_season_code)%>%
-  mutate(sum = sum(n))
+    median == 1 ~ "Pre-adult",
+    median == 2 ~ "Adult",
+    median == 3 ~ "Dead"))
 
-results_z_age%>%
-  group_by(Pod, year_season_code)%>%
-  mutate(total = sum(n))%>%
-  group_by(Pod)%>%
-  mutate(min = min(total), max = max(total), median = median(total), q5 = quantile(total, 0.05), q95 = quantile(total, 0.95))%>%
-  distinct(Pod, min, q5, median, q95, max)
+dead_t<-results_states%>%
+  filter(median == 3)%>%
+  group_by(pod)%>%
+  mutate(dead_num = n - lag(n))%>%
+  mutate(dead_num = case_when(
+    is.na(dead_num) ~ n,
+    TRUE ~ dead_num
+  ))%>%
+  mutate(n = dead_num)%>%
+  dplyr::select(-dead_num)
+
+results_states_2<-results_states%>%
+  filter(median != 3)%>%
+  bind_rows(dead_t)%>%
+  arrange(pod,t,age)
+  
 
 ## doesn't include zeros
 observed<-everyone%>%
@@ -402,59 +407,109 @@ observed%>%
 
 library(ggplot2)
 
-ggplot()+
-  #geom_col(results_z_age, mapping = aes(x = as.numeric(year_season_code), y = n, fill =  age))+
-  geom_point(ID_per_day_all%>%dplyr::rename("Pod" = "POD"), mapping = aes(x = as.numeric(year_season_code), y = n.y), color = "red")+
-  geom_line(ID_per_day_all%>%dplyr::rename("Pod" = "POD"), mapping = aes(x = as.numeric(year_season_code), y = n.y), color = "red")+
-  geom_point(results_z_age, mapping = aes(x = as.numeric(year_season_code), y = sum), color = "blue")+
-  geom_line(results_z_age, mapping = aes(x = as.numeric(year_season_code), y = sum), color = "blue")+
-  facet_wrap(~Pod, scales = "free")+
+results_states_2$age<-factor(results_states_2$age, c("Dead","Adult","Pre-adult"))
+library(viridis)
+viridis(2, begin = 1, end = 0.2)
+
+fill_col <- c("Dead" = "#21908CFF", "Adult" = "#FDE725FF", "Pre-adult" = "#414487FF")
+
+alive<-ggplot()+
+  geom_col(results_states_2, mapping = aes(x = as.numeric(year_season_code), y = n, fill =  age), alpha = 0.5, color = "grey30")+
+  facet_wrap(~pod, scales = "free", ncol = 1)+
+  geom_point(ID_per_day_all%>%dplyr::rename("pod" = "POD"), mapping = aes(x = as.numeric(year_season_code), y = n.y, shape = season), color = "red")+
+  geom_line(ID_per_day_all%>%dplyr::rename("pod" = "POD"), mapping = aes(x = as.numeric(year_season_code), y = n.y), color = "red")+
+  scale_fill_manual(values = fill_col)+
   scale_x_continuous(breaks = c(2005:2024))+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=90, vjust=0.5),
+        legend.position = "bottom")+
+  xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
+  ylab("# individuals")+
+  geom_rect(data = data.frame(pod = "DOUBTFUL"), aes(xmin = 2004.83, xmax = 2013.16, ymin = 0, ymax = 70), 
+            linewidth = 1, linetype = "dashed", color="black", fill = NA, alpha = 0.2, inherit.aes = FALSE)+
+  geom_rect(data = data.frame(pod = "DUSKY"), aes(xmin = 2006.83, xmax = 2015.83, ymin = 0, ymax = 140), 
+            linewidth = 1, linetype = "dashed", color="black", fill = NA, alpha = 0.2, inherit.aes = FALSE)
+
+alive
+ggsave(paste0('./figures/alive_',date,'.png'), alive, dpi = 300, width = 300, height = 175, units = "mm")
+
+
+prop<-results_states%>%filter(median != 3)%>%
+  group_by(pod, year_season_code)%>%
+  mutate(prop = n/sum(n))
+
+prop%>%filter(pod == "DOUBTFUL" & year_season_code >= 2013)%>%
+  group_by(age)%>%
+  dplyr::summarise(median = median(prop), min = min(prop), max = max(prop))
+
+prop%>%filter(pod == "DUSKY" & year_season_code >= 2015.67)%>%
+  group_by(age)%>%
+  dplyr::summarise(median = median(prop), min = min(prop), max = max(prop))
+
+ggplot()+
+  geom_col(prop, mapping = aes(x = year_season_code, y = prop, fill = age), alpha = 0.5, color = "grey30")+
+  facet_wrap(~pod)+
+  scale_fill_viridis_d(begin = 1, end = 0.2)+
   theme_bw()+
   theme(axis.text.x=element_text(angle=90, vjust=0.5))+
   xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
-  ylab("# individuals")
+  ylab("# individuals")+
+  geom_rect(data = data.frame(pod = "DOUBTFUL"), aes(xmin = 2004.83, xmax = 2013.16, ymin = 0, ymax = 1), 
+            linewidth = 1.5, linetype = "dashed", color="black", fill = NA, alpha = 0.2, inherit.aes = FALSE)+
+  geom_rect(data = data.frame(pod = "DUSKY"), aes(xmin = 2006.83, xmax = 2015.83, ymin = 0, ymax = 1), 
+            linewidth = 1.5, linetype = "dashed", color="black", fill = NA, alpha = 0.2, inherit.aes = FALSE)
 
-prop<-results_z_age%>%
-  group_by(Pod, year_season_code, age)%>%
-  mutate(prop = n/sum)
+ggsave(paste0('./figures/prop_',date,'.png'), dpi = 300, width = 300, height = 100, units = "mm")
 
-prop%>%filter(Pod == "DOUBTFUL" & year_season_code >= 2013)%>%
-  group_by(age)%>%
-  dplyr::summarise(median = median(prop), min = min(prop), max = max(prop))
+## compare ----
 
-prop%>%filter(Pod == "DUSKY" & year_season_code >= 2015.67)%>%
-  group_by(age)%>%
-  dplyr::summarise(median = median(prop), min = min(prop), max = max(prop))
+Doubtful_z<-results_states%>%
+  filter(pod == "DOUBTFUL" & median != 3)%>%
+  group_by(pod, year_season_code)%>%
+  dplyr::summarise(sum = sum(n))%>%
+  ungroup()
 
-ggplot()+
-  geom_col(prop, mapping = aes(x = year_season_code, y = prop, fill = age))+
-  facet_wrap(~Pod)
+Dusky_z<-results_states%>%
+  filter(pod == "DUSKY"& median != 3)%>%
+  group_by(pod, year_season_code)%>%
+  dplyr::summarise(sum = sum(n))%>%
+  ungroup()
 
-Doubtful_z<-results_z_age%>%
-  filter(Pod == "DOUBTFUL")
+compare_a<-Doubtful_z%>%
+  left_join(Dusky_z, by = c("year_season_code"))
 
-Dusky_z<-results_z_age%>%
-  filter(Pod == "DUSKY")
-
-compare<-Doubtful_z%>%
-  left_join(Dusky_z, by = c("age","year_season_code"))
-
-ggplot(compare, aes(x = sum.y, y = sum.x, color = year_season_code))+
+ggplot(compare_a, aes(x = sum.y, y = sum.x, color = year_season_code))+
   geom_point()+
   xlim(c(100,130))+
   ylim(c(45,75))+
   geom_smooth(method = "glm")
 
-#####
+####
 
+doubtful_dead<-dead_t%>%
+  filter(pod == "DOUBTFUL")
+
+dusky_dead<-dead_t%>%
+  filter(pod == "DUSKY")
+
+compare_d<-doubtful_dead%>%
+  left_join(dusky_dead, by = "year_season_code")
+
+ggplot(compare_d)+
+  geom_point(aes(x = n.x, y = n.y, color = year_season_code))
+
+ggplot(dead_t)+
+  geom_point(aes(x = year_season_code, y = n, color = pod))+
+  geom_line(aes(x = year_season_code, y = n, color = pod))
+
+#####
+#names(results_in_age)
 main_params<-subset_draws(results_in_age, c("pPA.est","pA.est","phiPA.est","phiA.est","psiPAA.est","alpha1","alpha2","beta1","beta2","gamma","sigma2"))
 results_age<-as.data.frame(summary(main_params))
-
 Sys.time()
 
 #alpha1 capture pod, alpha2 capture sex (adults only), beta1 survival pod, beta2 survival sex (adults only), gamma pod transition
-# pod = j, sex = k
+# pod = j
 #traceplots
 bayesplot::mcmc_trace(main_params, pars = c("alpha1[1]","alpha1[2]","beta1[1]","beta1[2]","gamma[1]","gamma[2]")) #"alpha2[1]","alpha2[2]","beta2[1]","beta2[2]",
 #alpha1 = capture between adults, alpha2 = pre-adults
@@ -499,8 +554,6 @@ ID_per_day_all$year_season_code<-as.character(ID_per_day_all$year_season_code)
 
 results_phi_in_age<-phi%>%
   mutate(calfyr_season = c(rep(names(long_samp_ch_all)[2:(n_occ)], each = 2),rep(names(long_samp_ch_all)[2:(n_occ)], each = 2)), # skip 2006.07
-         #pod = rep(rep(c("DOUBTFUL","DUSKY"), each = 1), (n_occ-1)*2))%>%
-         #Sex = c(rep(rep(c("Female","Male"), each = 1), (n_occ-1)*2), rep(NA,(n_occ-1)*2)),
          Pod = rep(rep(c("DOUBTFUL","DUSKY"), each = 1), (n_occ-1)*2))%>%
   mutate(Season = as.factor(case_when(
     grepl(".33", calfyr_season) ~ "Summer",
@@ -520,9 +573,9 @@ results_phi_in_age<-phi%>%
 library(ggplot2)
 
 ggplot()+
-  geom_point(results_phi_in_age, mapping = aes(x = as.numeric(calfyr_season), y = median, shape = Season, color = Ageclass), size = 3, alpha = 0.8)+
-  geom_errorbar(results_phi_in_age, mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95, color = Ageclass), size = 1, alpha = 0.8)+
-  facet_wrap(~Pod)+
+  geom_linerange(results_phi_in_age, mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95, color = Ageclass), position = position_dodge(width = 0.2), size = 1, alpha = 0.8)+
+  geom_point(results_phi_in_age, mapping = aes(x = as.numeric(calfyr_season), y = median, shape = Season, color = Ageclass), position = position_dodge(width = 0.2), size = 3, alpha = 0.8)+
+  facet_wrap(~Pod, ncol = 1)+
   theme_bw()+
   theme(legend.position = "bottom")+
   scale_x_continuous(breaks = c(2005:2024))+
@@ -536,7 +589,6 @@ ggsave(paste0('./figures/age_phi_pod_',date,'.png'), dpi = 300, width = 300, hei
 
 results_p_in_age<-p%>%
   mutate(calfyr_season = rep(rep(names(long_samp_ch_all)[3:(n_occ+1)], each = 2),2), # skip 2006.07
-         #Sex = c(rep(rep(c("Female","Male"), each = 1), (n_occ-1)*2), rep(NA,(n_occ-1)*2)),
          Pod = rep(rep(c("DOUBTFUL","DUSKY"), each = 1), (n_occ-1)*2))%>%
   mutate(Season = as.factor(case_when(
     grepl(".33", calfyr_season) ~ "Summer",
@@ -554,9 +606,9 @@ results_p_in_age<-p%>%
   mutate(area = "All areas")
 
 ggplot()+
-  geom_point(results_p_in_age, mapping = aes(x = as.numeric(calfyr_season), y = median, shape = Season, color = Ageclass), size = 3, alpha = 0.8)+
-  geom_errorbar(results_p_in_age, mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95, color = Ageclass), size = 1, alpha = 0.8)+
-  facet_wrap(~Pod)+
+  geom_linerange(results_p_in_age, mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95, color = Ageclass), position = position_dodge(width = 0.2), size = 1, alpha = 0.8)+
+  geom_point(results_p_in_age, mapping = aes(x = as.numeric(calfyr_season), y = median, shape = Season, color = Ageclass), position = position_dodge(width = 0.2), size = 3, alpha = 0.8)+
+  facet_wrap(~Pod, ncol = 1)+
   theme_bw()+
   scale_x_continuous(breaks = c(2005:2024))+
   theme(axis.text.x=element_text(angle=90, vjust=0.5))+
@@ -583,22 +635,19 @@ results_psi_in_age<-psi%>%
   mutate(area = "All areas")
 
 psi_plot<-ggplot(results_psi_in_age, aes(x = as.numeric(calfyr_season), y = median))+
-  geom_errorbar(aes(ymin = q5, ymax = q95), size = 1, alpha = 0.8)+
-  geom_point(aes(shape = Season),size = 3, alpha = 0.8)+
-  #geom_line(aes(linetype = pod))+
-  #ylim(c(0.0,1.0))+
-  facet_wrap(~Pod)+
+  geom_linerange(aes(ymin = q5, ymax = q95), position = position_dodge(width = 0.2), size = 1, alpha = 0.8)+
+  geom_point(aes(shape = Season), position = position_dodge(width = 0.2), size = 3, alpha = 0.8)+
+  facet_wrap(~Pod, ncol = 1)+
   theme_bw()+
   scale_x_continuous(breaks = c(2005:2024))+
   theme(axis.text.x=element_text(angle=90, vjust=0.5))+
   theme(legend.position = "bottom")+
   xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
-  ylab(expression('Transition probability, ' *psi))
-
-psi_plot$layers<-c(
-  geom_rect(data = data.frame(Pod = "DOUBTFUL"), aes(xmin = 2005, xmax = 2013, ymin = 0, ymax = 0.6), fill="purple", alpha = 0.4, inherit.aes = FALSE),
-  geom_rect(data = data.frame(Pod = "DUSKY"), aes(xmin = 2007, xmax = 2015.67, ymin = 0, ymax = 0.6), fill="purple", alpha = 0.4, inherit.aes = FALSE),
-  psi_plot$layers)
+  ylab(expression('Transition probability, ' *psi))+
+  geom_rect(data = data.frame(Pod = "DOUBTFUL"), aes(xmin = 2004.83, xmax = 2013.16, ymin = 0, ymax = 1), 
+            linewidth = 0.5, linetype = "dashed", color="black", fill = NA, alpha = 0.2, inherit.aes = FALSE)+
+  geom_rect(data = data.frame(Pod = "DUSKY"), aes(xmin = 2006.83, xmax = 2015.83, ymin = 0, ymax = 1), 
+            linewidth = 0.5, linetype = "dashed", color="black", fill = NA, alpha = 0.2, inherit.aes = FALSE)
 
 psi_plot
 ggsave(paste0('./figures/age_psi_pod_',date,'.png'), dpi = 300, width = 300, height = 175, units = "mm")
