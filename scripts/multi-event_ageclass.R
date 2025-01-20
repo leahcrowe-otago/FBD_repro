@@ -321,8 +321,8 @@ Sys.time()
 # F = 1, M = 2
 #Doubtful = 1, Dusky = 2
 
-date = "2025-01-11" # pod dependent, time varying random effects for p, phi, and psi
-date = "2025-01-18" # pod dependent, two alive states
+date = "2025-01-11" # older z for each pod/ageclass (too much output)
+date = "2025-01-18" # pod dependent, two alive states with just z output
 results_in_age<-readRDS(paste0("./data/multi-event_ageclass_",date,".rds"))
 
 library(posterior)
@@ -382,6 +382,12 @@ results_states_2<-results_states%>%
   arrange(pod,t,age)
   
 
+alive_est<-results_states_2%>%
+  ungroup()%>%
+  filter(age != "Dead")%>%
+  group_by(pod,t)%>%
+    mutate(sum = sum(n))
+
 ## doesn't include zeros
 observed<-everyone%>%
   ungroup()%>%
@@ -395,6 +401,26 @@ observed<-everyone%>%
   group_by(POD, year_season_code)%>%
   mutate(sum = sum(n),
          Pod = POD)
+
+est_obs<-alive_est%>%
+  left_join(observed, by = c("pod" = "Pod", "year_season_code","age"= "ageclass"))%>%
+  ungroup()%>%
+  dplyr::select("Samnpling occasion" = year_season_code, "Pod" = pod, "Ageclass" = age, "# obs" = n.y, "# est" = n.x, "Total obs" = sum.y, "Total est" = sum.x)
+
+n_density<-alive_est%>%distinct(pod,t,sum)%>%group_by(pod)%>%
+  mutate(median_pod = median(sum),
+         q5 = quantile(sum, 0.05),
+         q95 = quantile(sum, 0.95))
+
+unique(n_density$median_pod)
+
+ggplot(n_density)+
+  geom_density(aes(x = sum, color = pod, fill = pod), alpha = 0.6)+
+  geom_vline(aes(xintercept = median_pod, color = pod), linewidth = 1)+
+  theme_bw()+
+  xlim(c(45,135))
+
+ggsave(paste0('./figures/n_density_',date,'.png'), dpi = 300, width = 100, height = 100, units = "mm")
 
 observed%>%
   group_by(POD, year_season_code)%>%
@@ -431,7 +457,7 @@ alive<-ggplot()+
             linewidth = 1, linetype = "dashed", color="black", fill = NA, alpha = 0.2, inherit.aes = FALSE)
 
 alive
-ggsave(paste0('./figures/alive_',date,'.png'), alive, dpi = 300, width = 300, height = 175, units = "mm")
+ggsave(paste0('./figures/alive_',date,'.png'), alive, dpi = 300, width = 200, height = 175, units = "mm")
 
 
 prop<-results_states%>%filter(median != 3)%>%
@@ -447,11 +473,12 @@ prop%>%filter(pod == "DUSKY" & year_season_code >= 2015.67)%>%
   dplyr::summarise(median = median(prop), min = min(prop), max = max(prop))
 
 ggplot()+
-  geom_col(prop, mapping = aes(x = year_season_code, y = prop, fill = age), alpha = 0.5, color = "grey30")+
+  geom_col(prop, mapping = aes(x = year_season_code, y = prop, fill = age), alpha = 0.5, color = "grey30", linewidth = 0.5)+
   facet_wrap(~pod)+
   scale_fill_viridis_d(begin = 1, end = 0.2)+
   theme_bw()+
-  theme(axis.text.x=element_text(angle=90, vjust=0.5))+
+  theme(axis.text.x=element_text(angle=90, vjust=0.5),
+        legend.position = "bottom")+
   xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
   ylab("# individuals")+
   geom_rect(data = data.frame(pod = "DOUBTFUL"), aes(xmin = 2004.83, xmax = 2013.16, ymin = 0, ymax = 1), 
@@ -459,7 +486,7 @@ ggplot()+
   geom_rect(data = data.frame(pod = "DUSKY"), aes(xmin = 2006.83, xmax = 2015.83, ymin = 0, ymax = 1), 
             linewidth = 1.5, linetype = "dashed", color="black", fill = NA, alpha = 0.2, inherit.aes = FALSE)
 
-ggsave(paste0('./figures/prop_',date,'.png'), dpi = 300, width = 300, height = 100, units = "mm")
+ggsave(paste0('./figures/prop_',date,'.png'), dpi = 300, width = 200, height = 100, units = "mm")
 
 ## compare ----
 
@@ -573,7 +600,7 @@ results_phi_in_age<-phi%>%
 library(ggplot2)
 
 ggplot()+
-  geom_linerange(results_phi_in_age, mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95, color = Ageclass), position = position_dodge(width = 0.2), size = 1, alpha = 0.8)+
+  geom_errorbar(results_phi_in_age, mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95, color = Ageclass), position = position_dodge(width = 0.2), size = 1, alpha = 0.8)+
   geom_point(results_phi_in_age, mapping = aes(x = as.numeric(calfyr_season), y = median, shape = Season, color = Ageclass), position = position_dodge(width = 0.2), size = 3, alpha = 0.8)+
   facet_wrap(~Pod, ncol = 1)+
   theme_bw()+
@@ -606,7 +633,7 @@ results_p_in_age<-p%>%
   mutate(area = "All areas")
 
 ggplot()+
-  geom_linerange(results_p_in_age, mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95, color = Ageclass), position = position_dodge(width = 0.2), size = 1, alpha = 0.8)+
+  geom_errorbar(results_p_in_age, mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95, color = Ageclass), position = position_dodge(width = 0.2), size = 1, alpha = 0.8)+
   geom_point(results_p_in_age, mapping = aes(x = as.numeric(calfyr_season), y = median, shape = Season, color = Ageclass), position = position_dodge(width = 0.2), size = 3, alpha = 0.8)+
   facet_wrap(~Pod, ncol = 1)+
   theme_bw()+
@@ -635,7 +662,7 @@ results_psi_in_age<-psi%>%
   mutate(area = "All areas")
 
 psi_plot<-ggplot(results_psi_in_age, aes(x = as.numeric(calfyr_season), y = median))+
-  geom_linerange(aes(ymin = q5, ymax = q95), position = position_dodge(width = 0.2), size = 1, alpha = 0.8)+
+  geom_errorbar(aes(ymin = q5, ymax = q95), position = position_dodge(width = 0.2), size = 1, alpha = 0.8)+
   geom_point(aes(shape = Season), position = position_dodge(width = 0.2), size = 3, alpha = 0.8)+
   facet_wrap(~Pod, ncol = 1)+
   theme_bw()+
