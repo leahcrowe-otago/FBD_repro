@@ -75,7 +75,7 @@ p_box<-ggplot(results_p%>%filter(eff != "no effort"), aes(x = as.factor(Season),
   theme(legend.position = "bottom")+
   scale_fill_manual("Data",values = c("All areas" = "red", "Complexes only" = "black"))
 
-ggsave('./figures/p_box.png', p_box, dpi = 300, width = 200, height = 100, units = "mm")
+#ggsave('./figures/p_box.png', p_box, dpi = 300, width = 200, height = 100, units = "mm")
 
 ###
 p_all<-results_p_all%>%filter(eff != "no effort")
@@ -91,7 +91,10 @@ season_point<-ggplot(results_p_SA%>%filter(eff != "no effort"), aes(y = median, 
   scale_fill_manual(values = c("Spring" = "orange", "Summer" = "lightgrey", "Winter" = "blue"))+
   facet_wrap(~pod+Season)
   
-ggsave('./figures/season_point.png', season_point, dpi = 300, width = 200, height = 100, units = "mm")
+#ggsave('./figures/season_point.png', season_point, dpi = 300, width = 200, height = 100, units = "mm")
+
+season_p<-ggpubr::ggarrange(p_box, season_point, labels = "auto", ncol = 1)
+ggsave('./figures/season_p.png', season_p, dpi = 300, width = 200, height = 200, units = "mm")
 
 ##
 nrow(results_p_all)
