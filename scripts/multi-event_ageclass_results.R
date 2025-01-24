@@ -8,9 +8,11 @@ library(dplyr)
 
 date = "2025-01-11" # older z for each pod/ageclass (too much output)
 date = "2025-01-18" # pod dependent, two alive states with just z output
-date = "2025-01-20"
+date = "2025-01-20" 
 results_in_age<-readRDS(paste0("./data/multi-event_ageclass_",date,".rds"))
-everyone<-readRDS(everyone, "./data/everyone.RDS")
+everyone_ch_age<-readRDS("./data/everyone_A_PA_ch.RDS")
+ID_per_day_all<-readRDS("./data/ID_per_day_all.RDS") 
+n_doubtful<-sum(everyone_ch_age$pod_ch == 1)
 
 library(posterior)
 #subset because z params are for every individual and occasion
@@ -154,7 +156,7 @@ n_dens_plot<-ggplot(n_density)+
   theme_bw()+
   theme(legend.position = "bottom")+
   xlim(c(45,135))+
-  xlab("Median N/sampling occasion")
+  xlab("Adundance (N) per occasion")
 
 age_n_density$age<-factor(age_n_density$age, c("Dead","Adult","Non-adult"))
 fill_col <- c("Dead" = "#21908CFF", "Adult" = "#FDE725FF", "Non-adult" = "#414487FF")
@@ -171,7 +173,7 @@ age_n_dens_plot<-ggplot(age_n_density%>%filter(age != "Dead"))+
   scale_color_manual(values = fill_col)+
   #scale_fill_viridis_d(begin = 1, end = 0.2)+
   #scale_color_viridis_d(begin = 1, end = 0.2)+
-  xlab("Median N/sampling occasion")
+  xlab("Adundance (N) per occasion")
 
 age_density<-ggpubr::ggarrange(n_dens_plot, age_n_dens_plot, ncol = 2, labels = c("b","c"), widths = c(1,2))
 #ggsave(paste0('./figures/n_density_',date,'.png'), age_density, dpi = 300, width = 200, height = 75, units = "mm")
@@ -344,6 +346,8 @@ results_phi_in_age<-phi%>%
   filter(eff != "no effort")%>%
   mutate(area = "All areas")
 
+saveRDS(results_phi_in_age, paste0("./data/results_phi_in_age_",date,".RDS"))
+  
 NAdults_phi<-results_phi_in_age%>%filter(Ageclass == "Non-adult")
 
 Adults_phi<-results_phi_in_age%>%filter(Ageclass == "Adult")
@@ -388,6 +392,8 @@ results_p_in_age<-p%>%
   filter(eff != "no effort")%>%
   mutate(area = "All areas")%>%
   filter(!(Pod == "DUSKY" & calfyr_season == 2007))# need to manually remove first period for Dusky
+
+saveRDS(results_p_in_age, paste0("./data/results_p_in_age_",date,".RDS"))
 
 NAdults_p<-results_p_in_age%>%filter(Ageclass == "Non-adult")
 

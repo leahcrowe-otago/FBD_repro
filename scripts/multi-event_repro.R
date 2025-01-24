@@ -361,12 +361,12 @@ R2OpenBUGS::write.model(model,con="multi-event_repro.txt") # write JAGS model co
 Sys.time()
 m1 = rjags::jags.model("multi-event_repro.txt", data = mcmc.data, inits = inits, n.chains = 3, n.adapt = 5000)
 update(m1) # another burn in
-m1$state()
+#m1$state()
 #### Specify the parameters to be monitored ----
 parameters <- c("pN.est","pB.est","pW.est","phiN.est","phiB.est","phiW.est",
                 "psiNB.est","psiNW.est","psiBW.est","psiWB.est",
                 "alpha1","alpha2","alpha3","beta1","beta2","beta3",
-                "gamma","gamma3","gamma4","sigma2","z")
+                "gamma1","gamma2","gamma3","gamma4","sigma2","z")
 
 out1 = coda.samples(model = m1, variable.names = parameters, n.iter = 20000)
 #####
