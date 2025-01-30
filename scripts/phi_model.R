@@ -53,10 +53,36 @@ model<-function(){
     }
   }
   
+  #Doubtful
+  for (i in 1:doubtful_n){
+    for (t in (f[i]+1):n_occ){
+      Doubtful_a[i,t]<-equals(z[i,t],1) #alive doubtful
+    }
+    for (t in 1:f[i]){
+      Doubtful_a[i,t]<-0 # not alive doubtful
+    }}
+  
+  for (t in 1:n_occ){
+    Doubtful_N[t] <- sum(Doubtful_a[,t])
+  }
+    
+  ##Dusky
+  for (i in (doubtful_n+1):n_ind){
+    for (t in (f[i]+1):n_occ){
+      Dusky_a[i,t]<-equals(z[i,t],1) #alive dusky
+    }
+    for (t in 1:(f[i])){
+      Dusky_a[i,t]<-0 # not alive doubtful
+    }}
+
+  for (t in 1:n_occ){
+    Dusky_N[t] <- sum(Dusky_a[(doubtful_n+1):n_ind,t])
+  }
+  
 } 
 
 ## global params ----
-mcmc.params<-c("p.est","phi.est","beta","alpha","sigma","epsilon")
+mcmc.params<-c("p.est","phi.est","beta","alpha","sigma","epsilon","Doubtful_N","Dusky_N")
 
 ## global inits ----
 z.inits <- function(ch){

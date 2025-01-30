@@ -75,6 +75,7 @@ mcmc.data<-list(
   y = obs_ch_mat,
   n_ind = nrow(obs_ch_mat),
   f = f,
+  doubtful_n = doubtful_n,
   n_occ = ncol(obs_ch_mat),
   pod = ID_ch$pod_ch) 
 
@@ -90,7 +91,7 @@ out1_df = posterior::as_draws_df(out1)
 saveRDS(out1_df, file = paste0("./data/survival&cap_SA",Sys.Date(),".rds"))
 
 # Load results ----
-date = "2025-01-12"
+date = "2025-01-29"
 results_in_SA<-readRDS(paste0("./data/survival&cap_SA",date,".rds"))
 
 #everyone_ch_SA<-readRDS("./data/everyone_SA.RDS")
@@ -241,3 +242,43 @@ ggplot(results_ep_SA_p%>%filter(eff != "no effort"), aes(x = as.numeric(calfyr_s
   theme(legend.position = "bottom")+
   xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
   ylab(expression('Random effect on p'))
+
+N_SA<-results_SA%>%
+  filter(grepl("Doubtful_N", variable) | grepl("Dusky_N", variable))%>%
+  mutate(calfyr_season = rep(rep(names(long_samp_ch_all)[2:(n_occ+1)], each = 1),2),
+         Pod = c(rep("DOUBTFUL",56),rep("DUSKY",56)))%>%
+  mutate(Season = case_when(
+    grepl(".33", calfyr_season) ~ "Summer",
+    grepl(".67", calfyr_season) ~ "Winter",
+    TRUE ~ "Spring"
+  ))%>%
+  left_join(ID_per_day_all, by = c("calfyr_season" = "year_season_code", "Pod" = "POD","Season" = "season"))%>%
+  mutate(eff = case_when(
+    IDperDay != 0 ~ "effort",
+    TRUE ~ "no effort"))%>%
+  mutate(area = "All areas")
+
+sumstats_n_SA<-N_SA%>%
+  filter(median > 0)%>%
+  group_by(Pod)%>%
+  dplyr::summarise(q5_N = quantile(median, 0.05), med_N = median(median), q95_N = quantile(median, 0.95), min_census = min(n.y), med_census = median(n.y), max_census = max(n.y), min_q5 = min(q5), max_q95 = max(q95))
+
+ggplot(N_SA)+
+  geom_col(aes(x = calfyr_season, y = median), alpha = 0.5)+
+  geom_errorbar(aes(ymin = q5, ymax = q95, x = calfyr_season), size = 1, alpha = 0.8)+
+  geom_path(aes(x = calfyr_season, y = n.y, group = 1), color = "red")+
+  geom_point(aes(x = calfyr_season, y = n.y), color = "red")+
+  facet_wrap(~Pod)
+
+ggplot(N_SA%>%filter(median > 0))+
+  geom_hline(data = sumstats_n_SA, mapping = aes(yintercept = med_N, color = Pod), linetype = "dashed")+
+  geom_rect(data = sumstats_n_SA, mapping = aes(ymin = q5_N, ymax = q95_N, xmin = 2005.33, xmax = 2023.67, fill = Pod), alpha = 0.2)+
+  #geom_path(aes(x = as.numeric(calfyr_season), y = median, color = pod))+
+  geom_point(aes(x = as.numeric(calfyr_season), y = median, color = Pod, shape = Season),size = 3, alpha = 0.8)+
+  geom_errorbar(aes(ymin = q5, ymax = q95, x = as.numeric(calfyr_season), color = Pod), size = 1, alpha = 0.8)+
+  geom_smooth(aes(x = as.numeric(calfyr_season), y = median, color = Pod), method = "loess", span = 0.75)+
+  theme_bw()+
+  xlab("Year")+
+  ylab("Abundance")+
+  theme(legend.position = "bottom")
+
