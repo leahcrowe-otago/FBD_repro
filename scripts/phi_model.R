@@ -52,7 +52,8 @@ model<-function(){
       y[i,t] ~ dbern(p[i,t-1] * eff[pod[i],t] * z[i,t])
     }
   }
-  
+
+#Abundance
   #Doubtful
   for (i in 1:doubtful_n){
     for (t in (f[i]+1):n_occ){
@@ -61,10 +62,6 @@ model<-function(){
     for (t in 1:f[i]){
       Doubtful_a[i,t]<-0 # not alive doubtful
     }}
-  
-  for (t in 1:n_occ){
-    Doubtful_N[t] <- sum(Doubtful_a[,t])
-  }
     
   ##Dusky
   for (i in (doubtful_n+1):n_ind){
@@ -76,6 +73,7 @@ model<-function(){
     }}
 
   for (t in 1:n_occ){
+    Doubtful_N[t] <- sum(Doubtful_a[,t])
     Dusky_N[t] <- sum(Dusky_a[(doubtful_n+1):n_ind,t])
   }
   
