@@ -100,8 +100,8 @@ ID_per_day_SA<-readRDS("./data/ID_per_day_SA.RDS")
 
 results_SA<-as.data.frame(summary(results_in_SA))
 results_SA
-min(results_SA$ess_bulk)
-max(results_SA$rhat)
+min(results_SA$ess_bulk, na.rm = T)
+max(results_SA$rhat, na.rm = T)
 
 results_SA%>%
   filter(grepl("sigma", variable))%>%
@@ -281,4 +281,5 @@ ggplot(N_SA%>%filter(median > 0))+
   xlab("Year")+
   ylab("Abundance")+
   theme(legend.position = "bottom")
+
 
