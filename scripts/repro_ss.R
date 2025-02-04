@@ -151,7 +151,7 @@ all_wean_females<-all_wean_ls%>%
     month(ymd(LAST_DATE)) >= 5 & month(ymd(LAST_DATE)) <= 8 ~ paste0(as.numeric(year(LAST_DATE))+0.67),
     TRUE ~ '999909'
   ))%>%
-  dplyr::select(CALFYEAR, season_code, POD, NAME, SEX, calf, wean_season, FIRST_CALF, BIRTH_YEAR, first_season, DEATH_YEAR, last_season)
+  dplyr::select(CALFYEAR, season_code, POD, NAME, SEX, calf, wean_season, FIRST_CALF, BIRTH_YEAR, FIRST_YEAR, first_season, DEATH_YEAR, last_season)
 
 #filter(life_stage %in% c("A", "F", "P","W","M"))
 
@@ -174,6 +174,11 @@ obs_female_wean<-all_wean_females%>%
   filter(!(calf == "SEAL" & year_season_code > 2014.00))
 head(obs_female_wean)
 
+obs_female_wean_age<-obs_female_wean%>%
+  mutate(age = case_when(
+    as.numeric(BIRTH_YEAR) > 0 ~ year_season_code - as.numeric(BIRTH_YEAR),
+    TRUE ~ round(year_season_code - as.numeric(FIRST_CALF) + 10, 0)))
+
 mean_wean<-obs_female_wean%>%
   group_by(NAME, calf)%>%
   dplyr::summarise(min = min(year_season_code), max = max(year_season_code), .groups = "drop")%>%
@@ -189,6 +194,7 @@ mean_wean<-obs_female_wean%>%
   mutate(mean = mean(wean_time))
 
 mean_wean
+mean_wean%>%group_by(MOM)%>%tally()%>%arrange(-n)
 mean_wean%>%filter(wean_time < 2.67)
 hist(mean_wean$wean_time)
 
@@ -412,16 +418,16 @@ photo_days<-function(x){
 photo_days_all<-photo_days(PA_dates)
 photo_days_SA<-photo_days(PA_dates_SA)
 
+occasions<-yr_season_code%>%
+  filter(CALFYEAR >= 2005 & CALFYEAR < 2024)%>%
+  mutate(year_season_code = CALFYEAR + season_code)
+
 IDperday_fxn<-function(x,y){
 
   ID_sampling<-x%>%
     distinct(POD, NAME, year_season_code)%>%
     group_by(POD, year_season_code)%>%
     tally()
-  
-  occasions<-yr_season_code%>%
-    filter(CALFYEAR >= 2005 & CALFYEAR < 2024)%>%
-    mutate(year_season_code = CALFYEAR + season_code)
   
   occasions_Dbt<-occasions%>%
     mutate(POD = "DOUBTFUL")
@@ -538,11 +544,68 @@ female_repro<-everyone%>%
     POD == "DUSKY" ~ 2))%>%
   dplyr::select(NAME,POD,year_season_code,obs_ch,pod_ch)
 
+######
 female_ch<-female_repro%>%
-  arrange(year_season_code,POD, NAME)%>%
+  arrange(year_season_code, POD, NAME)%>%
   tidyr::pivot_wider(names_from = year_season_code, values_from = obs_ch)%>%
+  ungroup()%>%
   mutate(ind = 1:n())
 
 female_ch[is.na(female_ch)]<-0
+female_ch%>%filter(NAME == "BRIO")%>%dplyr::select(ind)
 
 saveRDS(female_ch, "./data/female_ch.RDS")
+female_ind<-female_ch%>%dplyr::select(NAME, ind)
+
+#########
+
+occasions$year_season_code<-as.numeric(occasions$year_season_code)
+
+everyone_f<-everyone%>%
+  filter(SEX == "F")
+
+namelist = unique(everyone_f$NAME)
+
+every_occasion_list<-NULL
+every_occasion_df<-NULL
+
+for (i in 1:length(namelist)){
+  
+  every_occasion<-everyone_f%>%
+    filter(NAME == namelist[i])%>%
+    right_join(occasions, by = c("year_season_code","CALFYEAR","season_code"))%>%
+    tidyr::fill(POD,NAME,SEX,FIRST_CALF,BIRTH_YEAR,first_season,DEATH_YEAR,last_season,age_value)%>%
+    arrange(year_season_code)%>%
+    filter(year_season_code >= as.numeric(BIRTH_YEAR) | year_season_code >= first_season)
+  
+  every_occasion_list[[i]] <- every_occasion 
+  every_occasion_df[[i]]<-data.table::rbindlist(every_occasion_list)
+  
+  print(every_occasion_df)
+  
+}
+
+every_occasion_age_ch<-as.data.frame(data.table::rbindlist(every_occasion_df))
+
+age_ch<-every_occasion_age_ch%>%
+  distinct()%>%
+  mutate(age = case_when(
+    is.na(age) ~ lag(age) + 0.33,
+    TRUE ~ age
+  ))%>%
+  mutate(age = case_when(
+    is.na(age) ~ lag(age) + 0.33,
+    TRUE ~ age
+  ))%>%
+  mutate(age_ch = case_when(
+    age >= 25 ~ 2,
+    age < 25 ~ 1
+  ))%>%
+  dplyr::select(POD, NAME, year_season_code, age_ch)%>%
+  arrange(year_season_code, POD, NAME)%>%
+  tidyr::pivot_wider(names_from = year_season_code, values_from = age_ch)%>%
+  left_join(female_ind, by = "NAME")
+
+age_ch%>%filter(NAME == "BRIO")%>%dplyr::select(ind)
+
+saveRDS(age_ch, "./data/age_ch.RDS")
