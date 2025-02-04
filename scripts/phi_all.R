@@ -97,6 +97,7 @@ results_in_all<-readRDS(paste0("./data/survival&cap_all",date,".rds"))
 results_all<-as.data.frame(summary(results_in_all))
 results_all
 min(results_all$ess_bulk, na.rm = T)
+max(results_all$rhat, na.rm = T)
 
 results_all%>%
   filter(grepl("sigma", variable))%>%
@@ -216,14 +217,18 @@ N<-results_all%>%
 sumstats_n<-N%>%
   filter(median > 0)%>%
   group_by(Pod)%>%
-  dplyr::summarise(q5_N = quantile(median, 0.05), med_N = median(median), q95_N = quantile(median, 0.95), min_census = min(n.y), med_census = median(n.y), max_census = max(n.y), min_q5 = min(q5), max_q95 = max(q95))
+  dplyr::summarise(q5_N = quantile(median, 0.05), med_N = median(median), q95_N = quantile(median, 0.95),
+                   min = min(median), max = max(median),
+                   min_census = min(n.y), med_census = median(n.y), max_census = max(n.y), 
+                   min_q5 = min(q5), max_q95 = max(q95))
 
-ggplot(N)+
-  geom_col(aes(x = calfyr_season, y = median), alpha = 0.5)+
-  geom_errorbar(aes(ymin = q5, ymax = q95, x = calfyr_season), size = 1, alpha = 0.8)+
-  geom_path(aes(x = calfyr_season, y = n.y, group = 1), color = "red")+
-  geom_point(aes(x = calfyr_season, y = n.y), color = "red")+
-  facet_wrap(~Pod)
+N%>%filter(calfyr_season == 2023.67)
+# ggplot(N)+
+#   geom_col(aes(x = calfyr_season, y = median), alpha = 0.5)+
+#   geom_errorbar(aes(ymin = q5, ymax = q95, x = calfyr_season), size = 1, alpha = 0.8)+
+#   geom_path(aes(x = calfyr_season, y = n.y, group = 1), color = "red")+
+#   geom_point(aes(x = calfyr_season, y = n.y), color = "red")+
+#   facet_wrap(~Pod)
 
 ggplot(N%>%filter(median > 0))+
   geom_hline(data = sumstats_n, mapping = aes(yintercept = med_N, color = Pod), linetype = "dashed")+
@@ -231,15 +236,12 @@ ggplot(N%>%filter(median > 0))+
   #geom_path(aes(x = as.numeric(calfyr_season), y = median, color = pod))+
   geom_point(aes(x = as.numeric(calfyr_season), y = median, color = Pod, shape = Season),size = 3, alpha = 0.8)+
   geom_errorbar(aes(ymin = q5, ymax = q95, x = as.numeric(calfyr_season), color = Pod), size = 1, alpha = 0.8)+
-  geom_smooth(aes(x = as.numeric(calfyr_season), y = median, color = Pod), method = "loess", span = 0.75)+
+  geom_smooth(aes(x = as.numeric(calfyr_season), y = median, color = Pod), method = "loess", span = 0.2)+
   theme_bw()+
   xlab("Year")+
   ylab("Abundance")+
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom")+
+  scale_x_continuous(breaks = c(2005:2024))
 
 ggsave("./figures/phi_all_N.png", dpi = 300, width = 300, height = 150, units = "mm")
 
-library(caret)
-ctrl <- trainControl(method = "cv", number = 5)
-grid <- expand.grid(span = seq(0.5, 0.9, len = 5), degree = 1)
-model <- train(median ~ as.numeric(calfyr_season), data = N%>%filter(median > 0), method = "gamLoess", tuneGrid=grid, trControl = ctrl)
