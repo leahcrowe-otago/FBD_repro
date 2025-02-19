@@ -1,0 +1,56 @@
+---
+csl: "biological-conservation.csl"
+bibliography: references.bib
+output:
+  pdf_document:
+    keep_tex: yes
+  word_document: default
+  html_noteboook: default
+  html_document:
+    df_print: paged
+editor: visual
+header-includes:
+  - \usepackage[left]{lineno}
+  - \linenumbers
+  - \usepackage{siunitx}
+  - \usepackage{setspace}
+  - \usepackage{times}
+  - \usepackage{tikz}
+  - \usepackage{pgfplots}
+  - \pgfplotsset{compat=1.18}
+  - \usetikzlibrary{arrows, automata}
+  - \usepackage{nicematrix}
+  - \usepackage{diagbox}
+
+fontsize: 12pt
+geometry: margin=1in
+---
+
+```{=tex}
+\[
+\begin{array}{c}
+\begin{matrix}
+\mu & \!\tau_1\! & \tau_2
+\end{matrix} \\
+\left[\ \begin{matrix}
+1 & 1 & 0 \\
+1 & 1 & 0 \\
+1 & 1 & 0 \\
+1 & 0 & 1 \\
+1 & 0 & 1 \\
+1 & 0 & 1
+\end{matrix}\ \right]
+\end{array}
+\]
+
+\begin{equation}
+\Omega = 
+\begin{bNiceMatrix}[first-col,first-row]
+\diagbox{z_{i,t-1}}{z_{i,t}}    & 1     & 2     & 3 & 4 \\
+   1 & \phi^{N}_{i,t}(1 - \psi^{NA}_{i,t})(1 - \psi^{NW}_{i,t}) & \phi^{N}_{i,t}\psi^{NA}_{i,t} & \phi^{N}_{i,t}\psi^{NW}_{i,t} & 1 - \phi^{N}_{i,t} \\
+   2 & 0 & \phi^{A}_{i,t}(1 - \psi^{BW}_{i,t}) & \phi^{A}_{i,t}\psi^{BW}_{i,t} & 1 - \phi^{A}_{i,t} \\
+   3 & 0 & \phi^{W}_{i,t}\psi^{WB}_{i,t} & \phi^{W}_{i,t}(1 - \psi^{WB}_{i,t}) & 1 - \phi^{W}_{i,t} \\
+   4 & 0 & 0 & 0 & 1 
+\end{bNiceMatrix}. 
+\end{equation}
+```
