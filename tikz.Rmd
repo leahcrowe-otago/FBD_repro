@@ -1,0 +1,45 @@
+---
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+header-includes:
+- \usepackage{tikz}
+- \usepackage{pgfplots}
+- \pgfplotsset{compat=1.18}
+- \usetikzlibrary{arrows,automata}
+- \pagenumbering{gobble}
+---
+
+## 
+
+```{=tex}
+\begin{tikzpicture}[>=stealth',shorten >=1pt,auto,node distance=4cm]
+    \node[state] (D)                {D};
+    \node[state] (A) [above of = D] {A};
+    \node[state] (W) [right of = A] {W};
+    \node[state] (N) [left of = A] {N};
+
+    \path[->] (N) edge [bend left = 60] node {$\phi^{N}\psi^{NA}$} (A)
+              (A) edge [bend left = 60] node {$\phi^{A}\psi^{AW}$} (W)
+              (N) edge [bend left = 90] node {$\phi^{N}\psi^{NW}$} (W)
+              (W) edge [bend left = 30] node {$\phi^{W}\psi^{WA}$} (A)
+              (W) edge node {$1-\phi^{W}$} (D)
+              (N) edge node {$1-\phi^{N}$} (D)
+              (A) edge node {$1-\phi^{A}$} (D);
+    \path (A) edge [anchor=center,loop left] node {$\phi^{A}(1-\psi^{AW})$} (A)
+          (W) edge [anchor=center,loop right] node {$\phi^{W}(1-\psi^{WA})$} (W)
+          (N) edge [anchor=center,loop left] node {$\phi^{N}(1-\psi^{NA})(1-\psi^{NW})$} (N)
+          (D) edge [anchor=center,loop below] node {$1$} (D);
+\end{tikzpicture}
+```
+```{=tex}
+\begin{tikzpicture}[>=stealth',shorten >=1pt,auto,node distance=4cm]
+    \node[state] (Dead)                {Dead};
+    \node[state] (Alive) [left of = Dead] {Alive};
+    \path[->] (Alive) edge node {$1-\phi_{j,t-1}$} (Dead);
+    \path (Alive) edge [anchor=center,loop left] node {$\phi_{j,t-1}$} (Alive)
+          (Dead) edge [anchor=center,loop right] node {$1$} (Dead);
+
+\end{tikzpicture}
+```
