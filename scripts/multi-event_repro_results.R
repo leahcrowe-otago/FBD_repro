@@ -7,125 +7,19 @@ library(ggplot2)
 ## Results ----
 #Doubtful = 1, Dusky = 2
 
-date = "2025-01-19" # 25k iterations
-date = "2025-01-22" # 50k but without both gammas  
-date = "2025-01-23" # 20k
-date = "2025-01-30" # 20k, N correctly
+#date = "2025-01-19" # 25k iterations
+#date = "2025-01-22" # 50k but without both gammas  
+#date = "2025-01-23" # 20k
+#date = "2025-01-30" # 20k, N correctly
 date = "2025-01-31" # 50k, N correctly
+date = "2025-03-20" # 50k, N correctly
 results_in_repro<-readRDS(paste0("./data/multi-event_repro_",date,".rds"))
 female_ch<-readRDS("./data/female_ch.RDS")%>%ungroup()
-ID_per_day_all<-readRDS("./data/ID_per_day_all.RDS")
-long_samp_ch_all<-readRDS("./data/long_samp.RDS")
+ID_per_day_SA<-readRDS("./data/ID_per_day_SA.RDS")
+long_samp_ch_SA<-readRDS("./data/long_samp_SA.RDS")
 n_occ = 56
 
 library(posterior)
-#subset because z params are for every individual and occasion
-# Sys.time()
-# z_est<-subset_draws(results_in_repro, c("z"))
-# results_z<-as.data.frame(summary(z_est))
-# Sys.time()
-# 
-# saveRDS(results_z, file = paste0("./data/multi-event_repro_z_results_",date,".rds"))
-# ###
-# 
-# results_z<-readRDS(paste0("./data/multi-event_repro_z_results_",date,".rds"))
-# 
-# pod_i<-female_ch%>%dplyr::select(NAME,POD,pod_ch)%>%mutate(i = 1:n())
-# 
-# results_z_sum<-results_z%>%
-#   mutate(
-#     i = as.numeric(stringr::str_extract(variable,
-#                                         pattern = "(?<=\\[).*(?=\\,)")),
-#     t = as.numeric(stringr::str_extract(variable,
-#                                         pattern = "(?<=\\,).*(?=\\])")))%>%
-#   dplyr::select(i,t,median)%>%
-#   # mutate(pod = case_when(
-#   #   i > n_doubtful ~"DUSKY",
-#   #   TRUE ~ "DOUBTFUL"
-#   # ))%>%
-#   left_join(pod_i, by = "i")%>%
-#   group_by(POD,t,median)%>%
-#   tally()
-# 
-
-# 
-
-# 
-# dead_t<-results_states%>%
-#   filter(median == 4)%>%
-#   group_by(POD)%>%
-#   mutate(dead_num = n - lag(n))%>%
-#   mutate(dead_num = case_when(
-#     is.na(dead_num) ~ n,
-#     TRUE ~ dead_num
-#   ))%>%
-#   mutate(n = dead_num)%>%
-#   dplyr::select(-dead_num)
-# 
-# results_states_2<-results_states%>%
-#   filter(median != 4)%>%
-#   bind_rows(dead_t)%>%
-#   arrange(POD,t,Repro_stage)%>%
-#   filter(!(POD == "DUSKY" & year_season_code < 2008))%>%
-#   filter(!(POD == "DOUBTFUL" & year_season_code == 2005))
-
-# ggplot()+
-#   geom_point(results_states_2, mapping = aes(x = as.numeric(year_season_code), y = n, color =  Repro_stage))+
-#   geom_line(results_states_2, mapping = aes(x = as.numeric(year_season_code), y = n, color =  Repro_stage))+
-#   facet_wrap(~POD, ncol = 1)+
-#   #geom_point(ID_per_day_all%>%dplyr::rename("pod" = "POD"), mapping = aes(x = as.numeric(year_season_code), y = n.y, shape = season), color = "red")+
-#   #geom_line(ID_per_day_all%>%dplyr::rename("pod" = "POD"), mapping = aes(x = as.numeric(year_season_code), y = n.y), color = "red")+
-#   #scale_fill_manual(values = fill_col)+
-#   scale_fill_viridis_d()+
-#   scale_x_continuous(breaks = c(2005:2024))+
-#   theme_bw()+
-#   theme(axis.text.x=element_text(angle=90, vjust=0.5),
-#         legend.position = "bottom")+
-#   xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
-#   ylab("# individuals")
-
-
-
-## compare ----
-# 
-# Doubtful_z<-results_states%>%
-#   filter(POD == "DOUBTFUL" & median != 3)%>%
-#   group_by(POD, year_season_code)%>%
-#   dplyr::summarise(sum = sum(n))%>%
-#   ungroup()
-# 
-# Dusky_z<-results_states%>%
-#   filter(POD == "DUSKY"& median != 3)%>%
-#   group_by(POD, year_season_code)%>%
-#   dplyr::summarise(sum = sum(n))%>%
-#   ungroup()
-# 
-# compare_a<-Doubtful_z%>%
-#   left_join(Dusky_z, by = c("year_season_code"))
-# 
-# ggplot(compare_a, aes(x = sum.y, y = sum.x, color = as.numeric(year_season_code)))+
-#   geom_point()+
-#   #xlim(c(100,130))+
-#   #ylim(c(45,75))+
-#   geom_smooth(method = "glm")
-# 
-# ####
-# 
-# doubtful_dead<-dead_t%>%
-#   filter(POD == "DOUBTFUL")
-# 
-# dusky_dead<-dead_t%>%
-#   filter(POD == "DUSKY")
-# 
-# compare_d<-doubtful_dead%>%
-#   left_join(dusky_dead, by = "year_season_code")
-# 
-# ggplot(compare_d)+
-#   geom_point(aes(x = n.x, y = n.y, color = as.numeric(year_season_code)))
-# 
-# ggplot(dead_t)+
-#   geom_point(aes(x = year_season_code, y = n, color = POD))+
-#   geom_line(aes(x = year_season_code, y = n, color = POD))
 
 ## summary ----
 results_repro<-as.data.frame(summary(results_in_repro))
@@ -144,8 +38,7 @@ bayesplot::mcmc_areas(results_in_repro, pars = c("beta1[1]","beta1[2]", "beta2[1
 bayesplot::mcmc_areas(results_in_repro, pars = c("gamma1[1]","gamma1[2]","gamma2[1]","gamma2[2]","gamma3[1]","gamma3[2]","gamma4[1]","gamma4[2]"),prob = 0.9)
 # 
 bayesplot::mcmc_trace(results_in_repro, pars = c("sigma2[1]","sigma2[2]","sigma2[3]"))
-bayesplot::mcmc_areas(results_in_repro, pars = c("sigma2[1]","sigma2[2]","sigma2[3]"))
-
+bayesplot::mcmc_areas(results_in_repro, pars = c("sigma2[3]"))
 
 # results_all
 min(results_repro$ess_bulk, na.rm = T)
@@ -155,9 +48,11 @@ hist(results_repro$rhat)
 results_repro%>%
   filter(grepl("sigma2", variable))
 
-results_repro%>%
+#capture
+alpha<-results_repro%>%
   filter(grepl("alpha", variable))
-results_repro%>%
+#survival
+beta<-results_repro%>%
   filter(grepl("beta", variable))
 results_repro%>%
   filter(grepl("gamma", variable))
@@ -227,35 +122,35 @@ results_phi_in_repro%>%
 
 phi_p_col <- c("Female: Adult with offspring" = "#FDE725FF", "Female: Adult w/o offspring" = "#73D055FF", "Female: Non-adult" = "#414487FF", "Non-adult" = "black", "Adult" = "black")
 
-#phi_age<-readRDS("./data/results_phi_in_age_2025-01-20.RDS")
-#head(phi_age)
-phi_repro_den<-ggplot(results_phi_in_repro)+
-  #geom_boxplot(results_phi_in_repro, mapping = aes(y = median, x = Repro_stage, fill = Repro_stage), alpha = 0.5)+
-  geom_density_ridges(aes(x = median, y = Repro_stage, fill = Pod), scale = 1, quantile_lines = TRUE, quantiles = 2, alpha = 0.7)+
-  #geom_boxplot(phi_age, mapping = aes(x = median, y = Ageclass, fill = Ageclass), alpha = 0.5,  linewidth = 0.2)+
-  #scale_fill_manual(values = phi_p_col)+
-  #facet_wrap(~Pod)+
-  #ylim(c(0.95,1))+
+multi_p<-ggplot(results_p_in_repro)+
+  geom_errorbar(aes(ymin = q5, ymax = q95, x = calfyr_season, color = Repro_stage), width = 0.5, size = 0.5, alpha = 0.8)+
+  geom_point(aes(x = calfyr_season, y = median, color = Repro_stage, shape = Season))+
+  facet_wrap(~Pod, ncol = 2)+
   theme_bw()+
-  theme(legend.position = "bottom")+
-  xlab(expression('Survival probability,' *phi))+
-  ylab("")
+  scale_color_manual(values = phi_p_col)+
+  theme(legend.title = element_blank(),
+        legend.position = "bottom",
+        axis.text.x=element_text(angle=90, vjust=0.5))+
+  ylab("")+
+  xlab(expression('Capture probability, ' *p))
 
-#ggsave(paste0('./figures/phi_repro_box_',date,'.png'), phi_repro_box, dpi = 300, width = 200, height = 100, units = "mm")
+multi_phi<-ggplot(results_phi_in_repro)+
+  geom_errorbar(aes(ymin = q5, ymax = q95, x = calfyr_season, color = Repro_stage), width = 0.5, size = 0.5, alpha = 0.8)+
+  geom_point(aes(x = calfyr_season, y = median, color = Repro_stage, shape = Season))+
+  facet_wrap(~Pod, ncol = 2)+
+  theme_bw()+
+  scale_color_manual(values = phi_p_col)+
+  theme(legend.title = element_blank(),
+        legend.position = "bottom",
+        axis.text.x=element_text(angle=90, vjust=0.5))+
+  ylab("")+
+  xlab(expression('Survival probability, ' *phi))
 
-# phi_repro<-ggplot()+
-#   geom_linerange(results_phi_in_repro, mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95, color = Repro_stage), position = position_dodge(width = 0.2), size = 1, alpha = 0.8)+
-#   geom_point(results_phi_in_repro, mapping = aes(x = as.numeric(calfyr_season), y = median, shape = Season, color = Repro_stage), position = position_dodge(width = 0.2), size = 3, alpha = 0.8)+
-#   facet_wrap(~Pod, ncol = 1)+
-#   theme_bw()+
-#   theme(legend.position = "bottom")+
-#   scale_x_continuous(breaks = c(2005:2024))+
-#   theme(axis.text.x=element_text(angle=90, vjust=0.5))+
-#   xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
-#   ylab(expression('Survival probability,' *phi))
+multi_p_phi<-ggpubr::ggarrange(multi_p,multi_phi, common.legend = T, legend = "bottom", nrow = 2, labels = "auto")
 
-#ggsave(paste0('./figures/age_phi_pod_',date,'.png'), dpi = 300, width = 300, height = 175, units = "mm")
+ggsave('./figures/multi_p_phi.png', multi_p_phi, dpi = 300, width = 250, height = 200, units = "mm")
 
+library(ggridges)
 ## capture prob # not identifiable at first occasion
 
 results_p_in_repro<-p%>%
@@ -282,34 +177,92 @@ results_p_in_repro%>%
   group_by(Pod, Repro_stage)%>%
   dplyr::summarise(o_median = median(median), o_q5 = median(q5), o_q95 = median(q95))
 
-p_repro_den<-ggplot(results_p_in_repro)+
-  geom_density_ridges(aes(x = median, y = Repro_stage, fill = Pod), scale = 1, quantile_lines = TRUE, quantiles = 2, alpha = 0.7)+
-  #geom_boxplot(results_p_in_repro, mapping = aes(y = median, x = Repro_stage, fill = Repro_stage), alpha = 0.5)+
-  #scale_fill_manual(values = phi_p_col)+
-  #facet_wrap(~Pod)+
+alpha%>%
+  mutate(param = "p",
+    Repro_stage = case_when(
+      grepl("alpha1",variable) == TRUE ~ "Female: Non-adult",
+      grepl("alpha2",variable) == TRUE ~ "Female: Adult w/o offspring",
+      grepl("alpha3",variable) == TRUE ~ "Female: Adult with offspring"
+), Pod = rep(rep(c("DOUBTFUL","DUSKY"), each = 1),3))
+  
+library(tidybayes)
+
+comp_results_repro<-compose_data(results_in_repro)
+
+alpha1_Doubtful<-comp_results_repro$`alpha1[1]`
+alpha2_Doubtful<-comp_results_repro$`alpha2[1]`
+alpha3_Doubtful<-comp_results_repro$`alpha3[1]`
+alpha1_Dusky<-comp_results_repro$`alpha1[2]`
+alpha2_Dusky<-comp_results_repro$`alpha2[2]`
+alpha3_Dusky<-comp_results_repro$`alpha3[2]`
+
+alpha<-ggplot()+
+  geom_density_ridges(mapping = aes(x = alpha1_Doubtful, y = "Female: Non-adult", fill = "Doubtful", color = "Doubtful"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = alpha1_Dusky, y = "Female: Non-adult", fill = "Dusky", color = "Dusky"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = alpha2_Doubtful, y = "Female: Adult w/o offspring", fill = "Doubtful", color = "Doubtful"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = alpha2_Dusky, y = "Female: Adult w/o offspring", fill = "Dusky", color = "Dusky"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = alpha3_Doubtful, y = "Female: Adult with offspring", fill = "Doubtful", color = "Doubtful"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = alpha3_Dusky, y = "Female: Adult with offspring", fill = "Dusky", color = "Dusky"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
   theme_bw()+
-  theme(legend.position = "bottom")+
-  xlab(expression('Capture probability, p'))+
-  ylab("")
+  theme(legend.position = "bottom",
+        legend.title = element_blank())+
+  xlab(expression(''*alpha))+
+  ylab("")+
+  guides(color = guide_legend(override.aes = list(fill = c("#F8766D", "#00BFC4"))),
+         fill = "none")
 
+beta1_Doubtful<-comp_results_repro$`beta1[1]`
+beta2_Doubtful<-comp_results_repro$`beta2[1]`
+beta3_Doubtful<-comp_results_repro$`beta3[1]`
+beta1_Dusky<-comp_results_repro$`beta1[2]`
+beta2_Dusky<-comp_results_repro$`beta2[2]`
+beta3_Dusky<-comp_results_repro$`beta3[2]`
 
-ab_den<-ggpubr::ggarrange(p_repro_den, phi_repro_den, ncol = 1, labels = "auto", common.legend = T, legend = "bottom")
+beta<-ggplot()+
+  geom_density_ridges(mapping = aes(x = beta1_Doubtful, y = "Female: Non-adult", fill = "Doubtful", color = "Doubtful"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = beta1_Dusky, y = "Female: Non-adult", fill = "Dusky", color = "Dusky"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = beta2_Doubtful, y = "Female: Adult w/o offspring", fill = "Doubtful", color = "Doubtful"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = beta2_Dusky, y = "Female: Adult w/o offspring", fill = "Dusky", color = "Dusky"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = beta3_Doubtful, y = "Female: Adult with offspring", fill = "Doubtful", color = "Doubtful"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = beta3_Dusky, y = "Female: Adult with offspring", fill = "Dusky", color = "Dusky"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  theme_bw()+
+  theme(legend.position = "bottom",
+        legend.title = element_blank())+
+  xlab(expression(''*beta))+
+  ylab("")+
+  guides(color = guide_legend(override.aes = list(fill = c("#F8766D", "#00BFC4"))),
+         fill = "none")
+
+ab_den<-ggpubr::ggarrange(alpha, beta, ncol = 1, labels = "auto", common.legend = T, legend = "bottom")
 ab_den
 
-ggsave(paste0('./figures/p_phi_repro_den_',date,'.png'), ab_den, dpi = 300, width = 200, height = 150, units = "mm")
+ggsave(paste0('./figures/ab_den_',date,'.png'), ab_den, dpi = 300, width = 200, height = 200, units = "mm")
 
-# p_repro<-ggplot()+
-#   geom_linerange(results_p_in_repro, mapping = aes(x = as.numeric(calfyr_season),ymin = q5, ymax = q95, color = Repro_stage), position = position_dodge(width = 0.2), size = 1, alpha = 0.8)+
-#   geom_point(results_p_in_repro, mapping = aes(x = as.numeric(calfyr_season), y = median, shape = Season, color = Repro_stage), position = position_dodge(width = 0.2), size = 3, alpha = 0.8)+
-#   facet_wrap(~Pod, ncol = 1)+
-#   theme_bw()+
-#   scale_x_continuous(breaks = c(2005:2024))+
-#   theme(axis.text.x=element_text(angle=90, vjust=0.5))+
-#   theme(legend.position = "bottom")+
-#   xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
-#   ylab(expression('Capture probability, p'))
+gamma1_Doubtful<-comp_results_repro$`gamma1[1]`
+gamma2_Doubtful<-comp_results_repro$`gamma2[1]`
+gamma3_Doubtful<-comp_results_repro$`gamma3[1]`
+gamma4_Doubtful<-comp_results_repro$`gamma4[1]`
+gamma1_Dusky<-comp_results_repro$`gamma1[2]`
+gamma2_Dusky<-comp_results_repro$`gamma2[2]`
+gamma3_Dusky<-comp_results_repro$`gamma3[2]`
+gamma4_Dusky<-comp_results_repro$`gamma4[2]`
 
-#ggsave(paste0('./figures/age_p_pod_',date,'.png'), dpi = 300, width = 300, height = 175, units = "mm")
+gamma<-ggplot()+
+  geom_density_ridges(mapping = aes(x = gamma1_Doubtful, y = "Female: Non-adult to Adult w/o offspring", fill = "Doubtful", color = "Doubtful"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = gamma1_Dusky, y = "Female: Non-adult to Adult w/o offspring", fill = "Dusky", color = "Dusky"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = gamma2_Doubtful, y = "Female: Non-adult to Adult with offspring", fill = "Doubtful", color = "Doubtful"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = gamma2_Dusky, y = "Female: Non-adult to Adult with offspring", fill = "Dusky", color = "Dusky"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = gamma3_Doubtful, y = "Female: Adult w/o offspring to Adult with offspring", fill = "Doubtful", color = "Doubtful"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = gamma3_Dusky, y = "Female: Adult w/o offspring to Adult with offspring", fill = "Dusky", color = "Dusky"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = gamma4_Doubtful, y = "Female: Adult with offspring to Adult w/o offspring", fill = "Doubtful", color = "Doubtful"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  geom_density_ridges(mapping = aes(x = gamma4_Dusky, y = "Female: Adult with offspring to Adult w/o offspring", fill = "Dusky", color = "Dusky"), scale = 1, alpha = 0.4, quantile_lines = TRUE, quantiles = 2, linewidth = 1)+
+  theme_bw()+
+  theme(legend.position = "bottom",
+        legend.title = element_blank())+
+  xlab(expression(''*gamma))+
+  ylab("")+
+  guides(color = guide_legend(override.aes = list(fill = c("#F8766D", "#00BFC4"))),
+         fill = "none")
 
 ## transition probability ----
 results_psi_in_repro<-psi%>%
@@ -385,13 +338,11 @@ psi_stages<-opposite_psi2%>%
 psi_stages$repro_group<-factor(psi_stages$repro_group, c("From adult with offspring","From adult w/o offspring","From non-adult"))
 fill_col <- c("From adult with offspring" = "#FDE725FF", "From adult w/o offspring" = "#73D055FF", "From non-adult" = "#414487FF")
 
-library(ggridges)
-
 psi_stages%>%group_by(Repro_stage, Pod)%>%dplyr::summarise(p5 = quantile(median, 0.05), p50 = median(median), p95 = quantile(median, 0.95))
 
 ggplot(psi_stages)+
   geom_density_ridges(aes(x = median, y = Repro_stage, fill = repro_group), scale = 2, quantile_lines = TRUE, quantiles = 2, alpha = 0.5)+
-  facet_wrap(~Pod)+
+  facet_wrap(~Pod, ncol = 2)+
   theme_bw()+
   scale_fill_manual(values = fill_col)+
   theme(legend.title = element_blank(),
@@ -399,8 +350,18 @@ ggplot(psi_stages)+
   ylab("")+
   xlab(expression('Transition probability, ' *psi))
 
-ggsave(paste0('./figures/repro_transitions_',date,'.png'), dpi = 300, width = 300, height = 100, units = "mm")
+ggsave(paste0('./figures/repro_transitions_',date,'.png'), dpi = 300, width = 250, height = 100, units = "mm")
 
+# ggplot(psi_stages)+
+#   geom_point(aes(x = calfyr_season, y = median, color = Repro_stage))+
+#   geom_errorbar(aes(ymin = q5, ymax = q95, x = calfyr_season, color = Repro_stage), width = 0.5, size = 0.8, alpha = 0.8)+
+#   facet_wrap(~Pod, ncol = 1)+
+#   theme_bw()+
+#   scale_fill_manual(values = fill_col)+
+#   theme(legend.title = element_blank(),
+#         legend.position = "bottom")+
+#   ylab("")+
+#   xlab(expression('Transition probability, ' *psi))
 # Abundance
 
 N$Repro_stage<-factor(N$Repro_stage, c("Adult with offspring","Adult w/o offspring","Non-adult"))
@@ -461,7 +422,7 @@ N%>%filter(year_season_code == "2023.67")
 ### prop N
 prop<-N%>%
   group_by(Pod, year_season_code)%>%
-  filter(Repro_stage != "Non-adult age")%>%
+  filter(Repro_stage != "Non-adult")%>%
   mutate(prop = median/sum(median))
 
 prop_trend<-ggplot(prop%>%filter(median > 0), mapping = aes(x = as.numeric(year_season_code), y = prop, fill = Repro_stage, color = Repro_stage))+
@@ -492,20 +453,8 @@ prop%>%filter(Pod == "DUSKY")%>%# & year_season_code >= 2015.67)%>%
   dplyr::summarise(median = round(median(prop, na.rm = T),2), q5 = quantile(prop, 0.05, na.rm = T), q95 = quantile(prop, 0.95, na.rm = T))
 
 prop$Repro_stage<-factor(prop$Repro_stage, c("Adult age w/o offspring","Adult with offspring"))
-## fix colors
-prop_female<-ggplot()+
-  geom_col(prop, mapping = aes(x = as.numeric(year_season_code), y = prop, fill = Repro_stage), alpha = 0.5, color = "grey30")+
-  facet_wrap(~Pod)+
-  scale_fill_manual(values = fill_col)+
-  scale_x_continuous(breaks = c(2005:2024))+
-  theme_bw()+
-  theme(axis.text.x=element_text(angle=90, vjust=0.5),
-        legend.position = "bottom")+
-  xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
-  ylab("# individuals")
-#ggsave(paste0('./figures/repro_prop_',date,'.png'), dpi = 300, width = 300, height = 100, units = "mm")
 
-results_AF<-N%>%filter(Repro_stage != "Non-adult age")%>%
+results_AF<-N%>%filter(Repro_stage != "Non-adult")%>%
   group_by(Pod, Repro_stage)%>%
   mutate(median_stage = median(median), q5 = quantile(median, 0.05), q95 = quantile(median, 0.95))%>%
   group_by(Pod, t)%>%
@@ -513,54 +462,70 @@ results_AF<-N%>%filter(Repro_stage != "Non-adult age")%>%
   group_by(Pod)%>%
   mutate(min = min(sum), max = max(sum))%>%
   ungroup()#%>%
-  filter(!(POD == "DUSKY" & year_season_code < 2008))%>% # remove first and second occasion
-  filter(!(POD == "DOUBTFUL" & year_season_code == 2005)) # remove first occasion
+  #filter(!(POD == "DUSKY" & year_season_code < 2008))%>% # remove first and second occasion
+  #filter(!(POD == "DOUBTFUL" & year_season_code == 2005)) # remove first occasion
 
 results_AF%>%distinct(Pod, Repro_stage, median_stage, q5, q95)
 results_AF%>%distinct(Pod, min, max)
 
-adult_distr<-ggplot(results_AF)+
-  geom_density(aes(x = median, fill = Repro_stage, linetype = Repro_stage), color = "grey30", alpha = 0.4)+
-  geom_vline(mapping = aes(xintercept = median_stage, color = Repro_stage), linewidth = 1)+
-  geom_vline(aes(xintercept = q5, color = Repro_stage), linetype = "dashed", linewidth = 1)+
-  geom_vline(aes(xintercept = q95, color = Repro_stage), linetype = "dashed", linewidth = 1)+
-  facet_wrap(~Pod, scales = "free_x")+
-  scale_fill_manual(values = fill_col)+
-  scale_color_manual(values = fill_col)+
-  theme_bw()+
-  theme(legend.position = "bottom",
-        legend.title = element_blank())
-
-ggplot(prop)+
-  geom_density(aes(x = prop, fill = Repro_stage, linetype = Repro_stage), color = "grey30", alpha = 0.4)+
-  #geom_vline(mapping = aes(xintercept = median_stage, color = Repro_stage), linewidth = 1)+
-  #geom_vline(aes(xintercept = q5, color = Repro_stage), linetype = "dashed", linewidth = 1)+
-  #geom_vline(aes(xintercept = q95, color = Repro_stage), linetype = "dashed", linewidth = 1)+
-  facet_wrap(~Pod, scales = "free_x")+
-  scale_fill_manual(values = fill_col)+
-  scale_color_manual(values = fill_col)+
-  theme_bw()+
-  theme(legend.position = "bottom",
-        legend.title = element_blank())
-
-ggpubr::ggarrange(alive_repro, adult_distr, ncol = 1, labels = "auto", common.legend = TRUE, legend = "bottom", heights = c(2,1.5))
-
-ggsave(paste0('./figures/repro_abund_prop_',date,'.png'), dpi = 300, width = 200, height = 200, units = "mm")
-
 ## fecundity ########
-N_adultW<-N%>%filter(Repro_stage == "Adult w/o offspring")%>%
+
+N_adult<-N%>%filter(Repro_stage != "Non-adult")%>%
   mutate(year = stringr::str_sub(year_season_code, 1,4))
 
 calves_per_year<-calves%>%group_by(BIRTH_YEAR,POD)%>%tally()
 
-fecundity<-N_adultW%>%
+fecundity<-N_adult%>%
+  filter(!(Pod == "DUSKY" & year_season_code < 2008))%>% # remove first and second occasion
+  filter(!(Pod == "DOUBTFUL" & year_season_code == 2005))%>%
+  arrange(Pod, year_season_code)%>%
+  group_by(Pod, year_season_code)%>%
+  mutate(total_avail = sum(median))%>% # remove first occasion
   left_join(calves_per_year, by = c("Pod" = "POD", "year" = "BIRTH_YEAR"))%>%
-  mutate(total_avail = median + n)%>%
-  group_by(year)%>%
-  mutate(fecundity = n/mean(total_avail))
+  replace(is.na(.), 0)%>%
+  group_by(year,Pod)%>%
+  mutate(fecundity_mean = n/mean(total_avail),
+         fec_min = n/min(total_avail),
+         fec_max = n/max(total_avail))%>%
+  group_by(Pod)%>%
+  mutate(fec_mean = mean(fecundity_mean))%>%
+  mutate(IBI = 1/fecundity_mean,
+         IBI_mean = 1/fec_mean)
 
-ggplot(fecundity%>%distinct(year, fecundity,Pod))+
-  geom_point(aes(x = year, y = fecundity, color = Pod))+
-  geom_path(aes(x = year, y = fecundity, color = Pod, group = 1))+
+fecundity%>%distinct(Pod, fec_mean, IBI_mean)
+fecundity%>%group_by(Pod)%>%dplyr::summarise(
+  max_fec = max(fecundity_mean), min_fec = min(fecundity_mean),
+  max_IBI = max(IBI), min_IBI = min(IBI))
+
+ggplot(fecundity%>%distinct(year_season_code, fecundity_mean, fec_min, fec_max,Pod,year, fec_mean))+
+  geom_point(aes(x = as.numeric(year), y = fecundity_mean))+
+  geom_hline(aes(yintercept = fec_mean), linetype = "dotted")+
+  #geom_errorbar(aes(x = as.numeric(year), ymax = fec_min, ymin = fec_max), color = "red")+
+  geom_path(aes(x = as.numeric(year), y = fecundity_mean))+
   facet_wrap(~Pod)+
-  theme_bw()
+  scale_x_continuous(breaks = c(2005:2024))+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=90, vjust=0.5),
+        panel.grid.minor = element_blank())+
+  ylab("Fecundity")+
+  xlab("Year")
+
+ggplot(fecundity%>%distinct(year_season_code, IBI, IBI_mean, fecundity_mean, fec_min, fec_max,Pod,year, fec_mean))+
+  geom_point(aes(x = as.numeric(year), y = IBI))+
+  geom_hline(aes(yintercept = IBI_mean), linetype = "dotted")+
+  #geom_errorbar(aes(x = as.numeric(year), ymax = fec_min, ymin = fec_max), color = "red")+
+  geom_path(aes(x = as.numeric(year), y = IBI))+
+  facet_wrap(~Pod)+
+  scale_x_continuous(breaks = c(2005:2024))+
+  theme_bw()+
+  theme(axis.text.x=element_text(angle=90, vjust=0.5),
+        panel.grid.minor = element_blank())+
+  ylab("Fecundity")+
+  xlab("Year")
+
+ggsave(paste0('./figures/fecundity_',date,'.png'), dpi = 300, width = 200, height = 100, units = "mm")
+
+fecundity%>%group_by(Pod)%>%dplyr::summarise(min = min(fecundity_mean), max = max(fecundity_mean))
+
+fecundity%>%distinct(year, fecundity_mean, fec_min, fec_max,Pod,year, fec_mean)%>%
+  filter(as.numeric(year) >= 2020)

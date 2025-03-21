@@ -104,6 +104,12 @@ results_all%>%
   mutate(sigma2 = median^2)
 
 results_all%>%
+  filter(grepl("beta", variable))%>%
+  mutate(inv_logit_beta_med = 1/(1+exp(-median)),
+         inv_logit_beta_q5 = 1/(1+exp(-q5)),
+         inv_logit_beta_q95 = 1/(1+exp(-q95)))
+
+results_all%>%
   filter(grepl("phi.est", variable))
 
 ## surival prob # not identifiable at last occasion
@@ -221,6 +227,8 @@ sumstats_n<-N%>%
                    min = min(median), max = max(median),
                    min_census = min(n.y), med_census = median(n.y), max_census = max(n.y), 
                    min_q5 = min(q5), max_q95 = max(q95))
+
+sumstats_n
 
 N%>%filter(calfyr_season == 2023.67)
 # ggplot(N)+

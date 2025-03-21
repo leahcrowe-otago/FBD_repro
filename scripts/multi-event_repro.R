@@ -5,7 +5,7 @@ library(rjags)
 library(dplyr)
 
 # data ----
-long_samp_ch_all<-readRDS("./data/long_samp.RDS") #skip 2007.67
+long_samp_ch_all<-readRDS("./data/long_samp_SA.RDS") #skip 2007.67
 eff_it<-long_samp_ch_all%>%
   dplyr::select(-POD)%>%
   as.matrix()
@@ -13,11 +13,11 @@ eff_it<-long_samp_ch_all%>%
 eff_it[eff_it > 0]<-1
 eff_mat<-unname(eff_it)
 
-age_ch<-readRDS("./data/age_ch.RDS")%>%arrange(ind)
-age_ch$ind
-age_it<-age_ch%>%dplyr::select(-ind,-POD,-NAME,-`2007.67`)%>%
-  as.matrix()
-age_ch_mat<-unname(age_it)
+# age_ch<-readRDS("./data/age_ch.RDS")%>%arrange(ind)
+# age_ch$ind
+# age_it<-age_ch%>%dplyr::select(-ind,-POD,-NAME,-`2007.67`)%>%
+#   as.matrix()
+# age_ch_mat<-unname(age_it)
 
 female_ch<-readRDS("./data/female_ch.RDS")%>%ungroup()%>%arrange(ind)#%>%group_by(POD)%>%slice_head(n = 40)
 female_ch%>%dplyr::select(NAME,POD,pod_ch)
@@ -343,7 +343,7 @@ mcmc.data <- list(n_ind=n_ind,
                   n_doubtful = n_doubtful,
                   y=as.matrix(obs_ch_mat+1),
                   f=f,
-                  age = age_ch_mat,
+                  #age = age_ch_mat,
                   pod = pod_ch, 
                   eff = eff_mat)
 

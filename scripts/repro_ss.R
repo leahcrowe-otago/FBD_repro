@@ -294,25 +294,18 @@ final_ch<-function(x){
 everyone<-final_ch(all_photo)
 saveRDS(everyone, "./data/everyone.RDS")
 everyone_SA<-final_ch(SA_photo)
+saveRDS(everyone, "./data/everyone_SA.RDS")
 
-everyone_last<-everyone%>%distinct(NAME, last_season, POD, first_season)%>%mutate(time = as.numeric(last_season) - as.numeric(first_season))%>%
+everyone_last<-everyone_SA%>%distinct(NAME, last_season, POD, first_season)%>%mutate(time = as.numeric(last_season) - as.numeric(first_season))%>%
   mutate(sig_hist = case_when(
     time < 6 ~ "_<6",
     time >=6 & time < 10 ~ "_>=6 & <10",
     time >= 9 ~ ">=10"
   ))
 
-ggplot(everyone_last)+
-  geom_histogram(aes(x = as.factor(last_season), fill = sig_hist), stat = "count")+
-  facet_wrap(~POD)+
-  ylim(c(0,10))+
-  theme_bw()+
-  #scale_x_continuous(breaks = c(2005:2024))+
-  theme(axis.text.x=element_text(angle=90, vjust=0.5))
-
-nrow(everyone)
-e<-everyone%>%filter(year_season_code >= 2021)%>%group_by(year_season_code)%>%tally()
-e<-everyone_SA%>%filter(year_season_code >= 2021)%>%group_by(year_season_code)%>%tally()
+nrow(everyone_SA)
+# e<-everyone%>%filter(year_season_code >= 2021)%>%group_by(year_season_code)%>%tally()
+# e<-everyone_SA%>%filter(year_season_code >= 2021)%>%group_by(year_season_code)%>%tally()
 
 nrow(everyone_SA)
 
@@ -348,9 +341,9 @@ summary(everyone_ch)
 summary(everyone_SA_ch)
 
 # Go to phi_all*.R
-#saveRDS(everyone_ch, "./data/everyone_everywhere.RDS")
+saveRDS(everyone_ch, "./data/everyone_everywhere.RDS")
 # Go to phi_SA*.R
-#saveRDS(everyone_SA_ch, "./data/everyone_SA.RDS")
+saveRDS(everyone_SA_ch, "./data/everyone_SA.RDS")
 
 ### ageclass
 
@@ -377,17 +370,17 @@ ch_ageclass<-function(x){
 }
 
 # Calf, pre-breeder, adult
-everyone_A_PA_C_ch<-ch_ageclass(everyone%>%
-                                    mutate(ageclass_ch = case_when(
-                                        ageclass == "C" ~ 1,  
-                                        ageclass == "PA" ~ 2,  
-                                        ageclass == "U" ~ 2,  
-                                        ageclass == "A" ~ 3)))
+# everyone_A_PA_C_ch<-ch_ageclass(everyone_SA%>%
+#                                     mutate(ageclass_ch = case_when(
+#                                         ageclass == "C" ~ 1,  
+#                                         ageclass == "PA" ~ 2,  
+#                                         ageclass == "U" ~ 2,  
+#                                         ageclass == "A" ~ 3)))
 #saveRDS(everyone_A_PA_C_ch, "./data/everyone_A_PA_C_ch.RDS")
 
 
 # pre-breeder, adult
-everyone_A_PA_ch<-ch_ageclass(everyone%>%
+everyone_A_PA_ch<-ch_ageclass(everyone_SA%>%
                                   mutate(ageclass_ch = case_when(
                                     ageclass == "C" ~ 1,  
                                     ageclass == "PA" ~ 1,  
@@ -454,34 +447,34 @@ IDperday_fxn<-function(x,y){
 }
 
 ID_per_day_all<-IDperday_fxn(everyone,photo_days_all)%>%mutate(area = "All areas")
-#saveRDS(ID_per_day_all, "./data/ID_per_day_all.RDS") 
+saveRDS(ID_per_day_all, "./data/ID_per_day_all.RDS") 
 
 ID_per_day_SA<-IDperday_fxn(everyone_SA,photo_days_SA)%>%mutate(area = "Complexes only")
-#saveRDS(ID_per_day_SA, "./data/ID_per_day_SA.RDS") 
+saveRDS(ID_per_day_SA, "./data/ID_per_day_SA.RDS") 
 
 ###
-
+# 
 ID_per_day_together<-ID_per_day_all%>%
   bind_rows(ID_per_day_SA)
 
 ## point graph of # IDs/effort days in each sampling period
-ID_eff_plot<-ggplot(ID_per_day_together)+
-  geom_point(aes(x = year_season_code, y = IDperDay, shape = as.factor(season), color = area))+
-  geom_path(aes(x = year_season_code, y = IDperDay, color = area))+
-  facet_wrap(~POD)+
-  theme_bw()+
-  xlab("Sampling period")+
-  ylab("# individuals identified/day")+
-  scale_x_continuous(breaks = c(2005:2024))+
-  theme(axis.text.x=element_text(angle=90, vjust=0.5))
-
-ID_eff_plot
+# ID_eff_plot<-ggplot(ID_per_day_together)+
+#   geom_point(aes(x = year_season_code, y = IDperDay, shape = as.factor(season)))+
+#   geom_path(aes(x = year_season_code, y = IDperDay))+
+#   facet_wrap(~POD)+
+#   theme_bw()+
+#   xlab("Sampling period")+
+#   ylab("# individuals identified/day")+
+#   scale_x_continuous(breaks = c(2005:2024))+
+#   theme(axis.text.x=element_text(angle=90, vjust=0.5))
+# 
+# ID_eff_plot
 
 #ggsave('./figures/ID_eff_plot.png', ID_eff_plot, dpi = 300, width = 200, height = 100, units = 'mm')
 
 #individuals identified per sampling period
 count_ID_samp<-ggplot(ID_per_day_together)+
-  geom_path(aes(x = year_season_code, y = n.y, color = area), alpha = 0.4)+
+  #geom_path(aes(x = year_season_code, y = n.y, color = area), alpha = 0.4)+
   geom_point(aes(x = year_season_code, y = n.y, shape = as.factor(season), color = area))+
   facet_wrap(~POD)+
   theme_bw()+
@@ -501,10 +494,10 @@ fig1<-ggpubr::ggarrange(PA_timeline, count_ID_samp, ncol = 1, labels = "auto")
 ggsave('./figures/fig1.png', fig1, dpi = 300, width = 200, height = 200, units = 'mm')
 ##
 
-long_samp<-ID_per_day_all%>%
-  dplyr::select(year_season_code, POD, n.x)%>%
-  filter(year_season_code != 2007.67)%>%
-  tidyr::pivot_wider(names_from = year_season_code, values_from = n.x)
+# long_samp<-ID_per_day_all%>%
+#   dplyr::select(year_season_code, POD, n.x)%>%
+#   filter(year_season_code != 2007.67)%>%
+#   tidyr::pivot_wider(names_from = year_season_code, values_from = n.x)
 
 #saveRDS(long_samp, "./data/long_samp.RDS") 
 
@@ -516,7 +509,7 @@ long_samp_SA<-ID_per_day_SA%>%
 saveRDS(long_samp_SA, "./data/long_samp_SA.RDS") 
 
 # merge everyone with the reproductive females
-female_repro<-everyone%>%
+female_repro<-everyone_SA%>%
   left_join(obs_female_wean, by = c("CALFYEAR", "season_code", "POD", "NAME", "SEX", "FIRST_CALF", "BIRTH_YEAR", "first_season", "DEATH_YEAR", "last_season","year_season_code"))%>%
   filter(SEX == "F")%>%# & (ageclass == "A" | wean_season == "W"))%>%
   group_by(NAME)%>%
@@ -557,12 +550,14 @@ female_ch%>%filter(NAME == "BRIO")%>%dplyr::select(ind)
 saveRDS(female_ch, "./data/female_ch.RDS")
 female_ind<-female_ch%>%dplyr::select(NAME, ind)
 
-#########
+######### If using age as covariate
 
 occasions$year_season_code<-as.numeric(occasions$year_season_code)
 
-everyone_f<-everyone%>%
+everyone_f<-everyone_SA%>%
   filter(SEX == "F")
+everyone_f%>%filter(age >= 25)%>%distinct(NAME)
+everyone_f%>%distinct(NAME)
 
 namelist = unique(everyone_f$NAME)
 
