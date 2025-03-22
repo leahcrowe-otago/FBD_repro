@@ -103,6 +103,8 @@ results_SA
 min(results_SA$ess_bulk, na.rm = T)
 max(results_SA$rhat, na.rm = T)
 
+bayesplot::mcmc_trace(results_in_SA, pars = c("beta[1]", "beta[2]","alpha[1]","alpha[2]","sigma[1]","sigma[2]")) 
+
 results_SA%>%
   filter(grepl("sigma", variable))%>%
   mutate(sigma2 = median^2)
