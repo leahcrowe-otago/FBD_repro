@@ -32,10 +32,11 @@ model<-function(){
     beta[j] ~ dt(0,1,3)
   }
   
-  sigma[1] = 1/sqrt(tau[1])
-  sigma[2] = 1/sqrt(tau[2])
+
   tau[1] ~ dscaled.gamma(1,3)
   tau[2] ~ dscaled.gamma(1,3)
+  sigma[1] = 1/sqrt(tau[1])
+  sigma[2] = 1/sqrt(tau[2])
   sigma2[1] <- pow(sigma[1], 2)
   sigma2[2] <- pow(sigma[2], 2)
   
