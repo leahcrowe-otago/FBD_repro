@@ -542,12 +542,13 @@ female_ch<-female_repro%>%
   arrange(year_season_code, POD, NAME)%>%
   tidyr::pivot_wider(names_from = year_season_code, values_from = obs_ch)%>%
   ungroup()%>%
+  arrange(POD, NAME)%>%
   mutate(ind = 1:n())
 
 female_ch[is.na(female_ch)]<-0
 female_ch%>%filter(NAME == "BRIO")%>%dplyr::select(ind)
 
-saveRDS(female_ch, "./data/female_ch.RDS")
+saveRDS(female_ch, "./data/female_ch_SA.RDS")
 female_ind<-female_ch%>%dplyr::select(NAME, ind)
 
 ######### If using age as covariate
