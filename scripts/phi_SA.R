@@ -221,16 +221,18 @@ N_SA%>%
 ggplot(N_SA%>%filter(median > 0))+
   geom_hline(data = sumstats_n_SA, mapping = aes(yintercept = med_N, color = Pod), linetype = "dashed")+
   geom_rect(data = sumstats_n_SA, mapping = aes(ymin = q5_N, ymax = q95_N, xmin = 2005.33, xmax = 2023.67, fill = Pod), alpha = 0.2)+
-  geom_point(aes(x = as.numeric(calfyr_season), y = median, color = Pod, shape = Season),size = 3, alpha = 0.8)+
-  geom_errorbar(aes(ymin = q5, ymax = q95, x = as.numeric(calfyr_season), color = Pod), size = 1, alpha = 0.8)+
-  geom_smooth(aes(x = as.numeric(calfyr_season), y = median, color = Pod), method = "loess", span = 0.2)+
+  #geom_point(aes(x = as.numeric(calfyr_season), y = median, color = Pod, shape = Season),size = 3, alpha = 0.8)+
+  #geom_errorbar(aes(ymin = q5, ymax = q95, x = as.numeric(calfyr_season), color = Pod), size = 1, alpha = 0.8)+
+  geom_ribbon(aes(ymin = q5, ymax = q95, x = as.numeric(calfyr_season), color = Pod, fill = Pod), alpha = 0.8)+
+  geom_path(aes(x = as.numeric(calfyr_season), y = median, group = Pod), color = "black", alpha = 0.8)+
+  #geom_smooth(aes(x = as.numeric(calfyr_season), y = median, color = Pod), method = "loess", span = 0.2)+
   theme_bw()+
   xlab("Year")+
   ylab("Abundance")+
   theme(legend.position = "bottom")+
   scale_x_continuous(breaks = c(2005:2024))
 
-ggsave("./figures/phi_SA.png", dpi = 300, width = 300, height = 150, units = "mm")
+ggsave("./figures/phi_SA_ribbon.png", dpi = 300, width = 300, height = 150, units = "mm")
 
 results_phi<-results_phi_SA
 
@@ -245,7 +247,7 @@ results_phi$season<-as.factor(results_phi$season)
 
 phi_together<-ggplot(results_phi%>%filter(eff != "no effort"), aes(x = as.numeric(calfyr_season), y = median))+
   geom_errorbar(aes(ymin = q5, ymax = q95), alpha = 0.8)+
-  geom_point(aes(shape = Season), alpha = 0.8)+
+  geom_point(aes(fill = Season), shape = 21, alpha = 0.8)+
   geom_hline(beta_med, mapping = aes(yintercept = inv_logit_beta_med), linetype = "dashed", color = "red", alpha = 0.8)+
   facet_wrap(~pod)+
   theme_bw()+
@@ -256,7 +258,8 @@ phi_together<-ggplot(results_phi%>%filter(eff != "no effort"), aes(x = as.numeri
         panel.grid.minor.x = element_blank(),
         legend.background = element_rect(color = "white"))+
   xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
-  ylab(expression('Survival probability,' *phi))
+  ylab(expression('Survival probability,' *phi))+
+  scale_fill_manual(values = c("Spring" = "orange", "Summer" = "lightgrey", "Winter" = "blue"))
 
 phi_together
 
@@ -264,7 +267,7 @@ ggsave('./figures/phi_together.png', phi_together, dpi = 300, width = 200, heigh
 
 p_together<-ggplot(results_p%>%filter(eff != "no effort"), aes(x = as.numeric(calfyr_season), y = median))+
   geom_errorbar(aes(ymin = q5, ymax = q95), alpha = 0.8)+
-  geom_point(aes(shape = Season), alpha = 0.8)+
+  geom_point(aes(fill = Season), shape = 21, alpha = 0.8)+
   #geom_errorbar(results_p%>%filter(eff == "no effort"), mapping = aes(ymin = q5, ymax = q95), color = "grey", size = 1)+
   #geom_point(results_p%>%filter(eff == "no effort"), mapping = aes(x = as.numeric(calfyr_season), y = median, shape = as.factor(season)), color = "grey", size = 3)+
   #ylim(c(0.0,1.0))+
@@ -277,7 +280,8 @@ p_together<-ggplot(results_p%>%filter(eff != "no effort"), aes(x = as.numeric(ca
         panel.grid.minor.x = element_blank(),
         legend.background = element_rect(color = "white"))+
   xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
-  ylab(expression('Capture probability, p'))
+  ylab(expression('Capture probability, p'))+
+  scale_fill_manual(values = c("Spring" = "orange", "Summer" = "lightgrey", "Winter" = "blue"))
 
 p_together
 
@@ -285,7 +289,7 @@ ggsave('./figures/p_together.png', p_together, dpi = 300, width = 200, height = 
 
 phi_p_together<-ggpubr::ggarrange(p_together,phi_together, common.legend = T, labels = "auto", ncol = 1, legend = "bottom")
 
-ggsave('./figures/phi_p_together.png', phi_p_together, dpi = 300, width = 250, height = 200, units = "mm")
+ggsave('./figures/phi_p_together2.png', phi_p_together, dpi = 300, width = 250, height = 200, units = "mm")
 
 ####
 p_box<-ggplot(results_p%>%filter(eff != "no effort"), aes(x = as.factor(Season), y = median))+
