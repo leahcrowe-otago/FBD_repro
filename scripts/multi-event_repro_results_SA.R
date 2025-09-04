@@ -14,7 +14,11 @@ library(ggplot2)
 #date = "2025-01-31" # 50k, N correctly
 #date = "2025-03-20" # 50k, SA
 date = "2025-03-21" # 50k, SA adjusted sigmas
-date = "2025-03-22" # 10k, SA, 25 dscaleg, 3 phis
+#date = "2025-03-23_70k_half-t13" # 70k, SA adjusted sigmas, females ordered wrong?
+#date = "2025-03-24" #20k, SA fixed order of female_ch?, 3 phis
+#date = "2025-03-25" #20k, SA 5 phis
+date = "2025-03-25_50k5phi" #50k, SA 5 phis
+date = "2025-03-28" #100k, SA 5 phis
 results_in_repro<-readRDS(paste0("./data/multi-event_repro_",date,".rds"))
 female_ch<-readRDS("./data/female_ch_SA.RDS")%>%ungroup()
 ID_per_day_SA<-readRDS("./data/ID_per_day_SA.RDS")
@@ -25,8 +29,7 @@ library(posterior)
 
 ## summary ----
 results_repro<-as.data.frame(summary(results_in_repro))
-#date = "2025-03-22_dscaledg5" #5k, SA 5 sigmas, 3 for phi
-#date = "2025-03-22_dscaleg25" #20k, SA 5 sigmas, 5 for phi
+
 saveRDS(results_repro, file = paste0("./data/summ_results_repro_",date,".rds"))
 results_repro<-readRDS(paste0("./data/summ_results_repro_",date,".rds"))
 
@@ -41,9 +44,8 @@ bayesplot::mcmc_areas(results_in_repro, pars = c("beta1[1]","beta1[2]", "beta2[1
 #transition: gamma1: non-adult to breeding age, gamma2: non-adult to with offspring, gamma3: breeding age no offspring to breeding age offspring, gamma4: with offspring to no offspring
 bayesplot::mcmc_areas(results_in_repro, pars = c("gamma1[1]","gamma1[2]","gamma2[1]","gamma2[2]","gamma3[1]","gamma3[2]","gamma4[1]","gamma4[2]"),prob = 0.9)
 # 
+bayesplot::mcmc_trace(results_in_repro, pars = c("sigma2[1]","sigma2[2]","sigma2[3]","sigma2[4]","sigma2[5]"))
 bayesplot::mcmc_trace(results_in_repro, pars = c("sigma2[1]","sigma2[2]","sigma2[3]"))
-bayesplot::mcmc_trace(results_in_repro, pars = c("sigma2[2]","sigma2[3]","sigma2[4]"))
-bayesplot::mcmc_trace(results_in_repro, pars = c("sigma2[2]"))
 
 bayesplot::mcmc_areas(results_in_repro, pars = c("sigma2[1]","sigma2[2]","sigma2[3]"))
 
@@ -453,12 +455,13 @@ prop<-N%>%
   filter(Repro_stage != "Non-adult")%>%
   mutate(prop = median/sum(median))
 
-prop_trend<-ggplot(prop%>%filter(median > 0), mapping = aes(x = as.numeric(year_season_code), y = prop, fill = Repro_stage, color = Repro_stage))+
-  geom_smooth(aes(x = as.numeric(year_season_code), y = prop, color = Repro_stage), method = "loess", span = 0.2, alpha = 0.3)+
-  geom_smooth(aes(x = as.numeric(year_season_code), y = prop), color = "black", se = F, method = "loess", span = 0.2, alpha = 0.1, linetype = "dashed")+
-  #geom_errorbar(aes(ymin = q5, ymax = q95, x = as.numeric(year_season_code), color = Repro_stage), width = 0.3, size = 1, alpha = 0.8)+
-  geom_point(size = 3, aes(shape = Season))+
-  facet_wrap(~Pod, ncol = 1)+
+prop_trend<-ggplot(prop%>%filter(median > 0), mapping = aes(x = as.numeric(year_season_code), y = median, fill = Repro_stage, color = Repro_stage))+
+  #geom_smooth(aes(x = as.numeric(year_season_code), y = prop, color = Repro_stage), method = "loess", span = 0.2, alpha = 0.3)+
+  #geom_smooth(aes(x = as.numeric(year_season_code), y = prop), color = "black", se = F, method = "loess", span = 0.2, alpha = 0.1, linetype = "dashed")+
+  geom_path()+
+  geom_ribbon(aes(ymin = q5, ymax = q95, x = as.numeric(year_season_code), color = Repro_stage), alpha = 0.4)+
+  geom_point(size = 2, aes(shape = Season))+
+  facet_wrap(~Pod, ncol = 1, scale = "free_y")+
   scale_color_manual(values = fill_col)+
   scale_fill_manual(values = fill_col)+
   scale_x_continuous(breaks = c(2005:2024))+
@@ -466,11 +469,15 @@ prop_trend<-ggplot(prop%>%filter(median > 0), mapping = aes(x = as.numeric(year_
   theme(axis.text.x=element_text(angle=90, vjust=0.5),
         legend.position = "bottom")+
   xlab(expression("Dolphin year (01Sep"[y-1]~"–31Aug"[y]~")"))+
-  ylab("Proportion of individuals")
+  ylab("Number of individuals")+
+  guides(fill = "none")+
+  guides(color = "none")
 
-alive_abund<-ggpubr::ggarrange(alive_repro,prop_trend, labels = "auto", common.legend = TRUE, legend = "bottom")
+prop_trend
 
-ggsave(paste0('./figures/alive_repro_abund_SA_',date,'.png'), alive_abund, dpi = 300, width = 300, height = 175, units = "mm")
+alive_abund<-ggpubr::ggarrange(alive_repro,prop_trend, labels = "auto", common.legend = FALSE, legend = "bottom")
+
+ggsave(paste0('./figures/alive_repro_abund_SA_ribbon_',date,'.png'), alive_abund, dpi = 300, width = 300, height = 175, units = "mm")
 
 prop%>%filter(Pod == "DOUBTFUL")%>%
   group_by(Repro_stage)%>%
@@ -559,9 +566,7 @@ ggplot(fecundity%>%distinct(year_season_code, IBI, IBI_mean, fecundity_mean, fec
   ylab("IBI")+
   xlab("Year")
 
-
 fecundity%>%group_by(Pod)%>%dplyr::summarise(min = min(fecundity_mean), max = max(fecundity_mean))
 
 fecundity%>%distinct(year, fecundity_mean, fec_min, fec_max,Pod,year, fec_mean)%>%
   filter(as.numeric(year) >= 2019)
-
